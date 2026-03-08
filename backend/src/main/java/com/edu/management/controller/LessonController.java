@@ -77,7 +77,13 @@ public class LessonController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return ApiResponse.success(lessonService.getByCampusIdAndDate(campusId, date));
     }
-    
+
+    @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF', 'TEACHER')")
+    public ApiResponse<List<LessonDto>> getAll() {
+        return ApiResponse.success(lessonService.getAllLessons());
+    }
+
     @PostMapping("/generate")
     @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     public ApiResponse<List<LessonDto>> generateLessons(

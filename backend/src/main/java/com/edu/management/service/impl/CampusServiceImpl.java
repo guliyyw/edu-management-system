@@ -51,8 +51,14 @@ public class CampusServiceImpl implements CampusService {
     public void delete(Long id) {
         Campus campus = campusRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("校区不存在"));
-        campus.setStatus(CampusStatus.INACTIVE);
-        campusRepository.save(campus);
+
+        // 软删除逻辑：第一次标记为DELETED，第二次彻底删除
+        if (campus.getStatus() == CampusStatus.DELETED) {
+            campusRepository.delete(campus);
+        } else {
+            campus.setStatus(CampusStatus.DELETED);
+            campusRepository.save(campus);
+        }
     }
     
     @Override

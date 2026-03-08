@@ -7,16 +7,58 @@
           <el-button type="primary" size="small" @click="showAddDialog">添加班级</el-button>
         </div>
       </template>
-      
-      <el-table :data="classes" border v-loading="loading">
+
+      <el-table :data="classes" border v-loading="loading" row-key="id">
+        <el-table-column type="expand">
+          <template #default="{ row }">
+            <div class="student-list">
+              <h4>班级学生列表 ({{ row.students?.length || 0 }}人)</h4>
+              <el-table :data="row.students" border size="small" v-if="row.students?.length > 0">
+                <el-table-column prop="student.name" label="学生姓名" width="120" />
+                <el-table-column prop="student.gradeLevel" label="年级" width="100">
+                  <template #default="{ row: studentRow }">
+                    {{ getGradeLabel(studentRow.student.gradeLevel) }}
+                  </template>
+                </el-table-column>
+                <el-table-column prop="student.parentPhone" label="家长电话" width="150" />
+                <el-table-column label="是否试课" width="100">
+                  <template #default="{ row: studentRow }">
+                    <el-tag v-if="studentRow.isTrial" type="warning">试课</el-tag>
+                    <span v-else>正式</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="150">
+                  <template #default="{ row: studentRow }">
+                    <el-button v-if="studentRow.isTrial" type="success" size="small" @click="convertTrial(row, studentRow)">转正</el-button>
+                    <el-button type="danger" size="small" @click="removeStudent(row, studentRow)">移除</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-empty v-else description="暂无学生" />
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="className" label="班级名称" width="150" />
+        <el-table-column prop="gradeLevel" label="年级" width="100">
+          <template #default="{ row }">
+            {{ getGradeLabel(row.gradeLevel) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="course.name" label="课程" />
         <el-table-column prop="teacher.name" label="老师" />
         <el-table-column prop="campus.name" label="校区" />
-        <el-table-column prop="classroom" label="教室" width="100" />
-        <el-table-column label="上课时间" width="150">
+        <el-table-column prop="unitPrice" label="班级单价" width="100">
           <template #default="{ row }">
-            周{{ ['一', '二', '三', '四', '五', '六', '日'][row.dayOfWeek - 1] }} 
-            {{ row.startTime }} - {{ row.endTime }}
+            {{ row.unitPrice || row.course?.unitPrice }}
+          </template>
+        </el-table-column>
+        <el-table-column label="默认时间" width="150">
+          <template #default="{ row }">
+            <span v-if="row.defaultDayOfWeek">
+              周{{ ['一', '二', '三', '四', '五', '六', '日'][row.defaultDayOfWeek - 1] }}
+              {{ row.defaultStartTime }} - {{ row.defaultEndTime }}
+            </span>
+            <span v-else class="text-gray">不固定</span>
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="100">
@@ -24,53 +66,56 @@
             <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">{{ row.status }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="学生数" width="100">
+          <template #default="{ row }">
+            {{ row.students?.length || 0 }} 人
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="200">
           <template #default="{ row }">
-            <el-button type="primary" size="small" @click="manageStudents(row)">学生</el-button>
+            <el-button type="primary" size="small" @click="manageStudents(row)">管理学生</el-button>
             <el-button type="warning" size="small" @click="editClass(row)">编辑</el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
-    
+
     <!-- 添加/编辑对话框 -->
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑班级' : '添加班级'" width="600px">
       <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
+        <el-form-item label="班级名称" prop="className">
+          <el-input v-model="form.className" placeholder="如：六年级英语A班" />
+        </el-form-item>
+        <el-form-item label="年级" prop="gradeLevel">
+          <el-select v-model="form.gradeLevel" placeholder="选择年级" style="width: 100%;">
+            <el-option v-for="grade in gradeOptions" :key="grade.value" :label="grade.label" :value="grade.value" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="课程" prop="courseId">
           <el-select v-model="form.courseId" placeholder="选择课程" style="width: 100%;">
-            <el-option
-              v-for="course in courses"
-              :key="course.id"
-              :label="course.name"
-              :value="course.id"
-            />
+            <el-option v-for="course in courses" :key="course.id" :label="course.name" :value="course.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="老师" prop="teacherId">
           <el-select v-model="form.teacherId" placeholder="选择老师" style="width: 100%;">
-            <el-option
-              v-for="teacher in teachers"
-              :key="teacher.id"
-              :label="teacher.name"
-              :value="teacher.id"
-            />
+            <el-option v-for="teacher in teachers" :key="teacher.id" :label="teacher.name" :value="teacher.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="校区" prop="campusId">
           <el-select v-model="form.campusId" placeholder="选择校区" style="width: 100%;">
-            <el-option
-              v-for="campus in campuses"
-              :key="campus.id"
-              :label="campus.name"
-              :value="campus.id"
-            />
+            <el-option v-for="campus in campuses" :key="campus.id" :label="campus.name" :value="campus.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="教室" prop="classroom">
+        <el-form-item label="教室">
           <el-input v-model="form.classroom" placeholder="请输入教室" />
         </el-form-item>
-        <el-form-item label="星期" prop="dayOfWeek">
-          <el-select v-model="form.dayOfWeek" placeholder="选择星期" style="width: 100%;">
+        <el-form-item label="班级单价">
+          <el-input-number v-model="form.unitPrice" :min="0" :precision="2" placeholder="留空使用课程默认价格" style="width: 100%;" />
+          <div class="form-tip">不填则使用课程默认单价：{{ getCourseDefaultPrice() }}</div>
+        </el-form-item>
+        <el-divider>默认上课时间（可选）</el-divider>
+        <el-form-item label="星期">
+          <el-select v-model="form.defaultDayOfWeek" placeholder="选择星期（可选）" style="width: 100%;" clearable>
             <el-option label="周一" :value="1" />
             <el-option label="周二" :value="2" />
             <el-option label="周三" :value="3" />
@@ -79,12 +124,26 @@
             <el-option label="周六" :value="6" />
             <el-option label="周日" :value="7" />
           </el-select>
+          <div class="form-tip">不选表示上课时间灵活安排</div>
         </el-form-item>
-        <el-form-item label="开始时间" prop="startTime">
-          <el-time-picker v-model="form.startTime" format="HH:mm" style="width: 100%;" />
+        <el-form-item label="开始时间">
+          <el-time-picker
+            v-model="form.defaultStartTime"
+            format="HH:mm"
+            style="width: 100%;"
+            clearable
+            placeholder="选择默认开始时间"
+            @change="handleStartTimeChange"
+          />
         </el-form-item>
-        <el-form-item label="结束时间" prop="endTime">
-          <el-time-picker v-model="form.endTime" format="HH:mm" style="width: 100%;" />
+        <el-form-item label="结束时间">
+          <el-time-picker
+            v-model="form.defaultEndTime"
+            format="HH:mm"
+            style="width: 100%;"
+            clearable
+            placeholder="选择默认结束时间"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -92,25 +151,89 @@
         <el-button type="primary" @click="saveClass">保存</el-button>
       </template>
     </el-dialog>
-    
+
     <!-- 学生管理对话框 -->
-    <el-dialog v-model="studentDialogVisible" title="班级学生管理" width="700px">
+    <el-dialog v-model="studentDialogVisible" title="班级学生管理" width="900px">
       <div class="student-manage">
-        <div class="add-student">
-          <el-select v-model="selectedStudent" placeholder="选择学生" style="width: 200px;">
-            <el-option
-              v-for="student in availableStudents"
-              :key="student.id"
-              :label="student.name"
-              :value="student.id"
-            />
-          </el-select>
-          <el-checkbox v-model="isTrial" style="margin: 0 10px;">试课</el-checkbox>
-          <el-button type="primary" @click="addStudent">添加</el-button>
+        <div class="class-info-bar">
+          <el-tag>班级：{{ currentClassInfo?.className }}</el-tag>
+          <el-tag type="info">年级：{{ getGradeLabel(currentClassInfo?.gradeLevel) }}</el-tag>
+          <el-tag type="success">课程：{{ currentClassInfo?.course?.name }}</el-tag>
         </div>
-        
-        <el-table :data="currentClassStudents" border style="margin-top: 20px;">
+
+        <el-tabs v-model="activeTab">
+          <el-tab-pane label="添加已有学生" name="existing">
+            <div class="student-table-section">
+              <div class="table-header">
+                <span>选择要添加的学生（同年级学生优先显示）</span>
+                <el-checkbox v-model="isTrial" style="margin-left: 20px;">试课</el-checkbox>
+                <el-button type="primary" @click="addStudents" :disabled="selectedStudents.length === 0" style="margin-left: 20px;">
+                  批量添加 ({{ selectedStudents.length }}人)
+                </el-button>
+              </div>
+              <el-table
+                :data="sortedAvailableStudents"
+                border
+                @selection-change="handleSelectionChange"
+                ref="studentTableRef"
+              >
+                <el-table-column type="selection" width="55" />
+                <el-table-column prop="name" label="学生姓名" width="120" />
+                <el-table-column prop="gradeLevel" label="年级" width="100" sortable>
+                  <template #default="{ row }">
+                    <el-tag :type="row.gradeLevel === currentClassInfo?.gradeLevel ? 'success' : 'info'">
+                      {{ getGradeLabel(row.gradeLevel) }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="parentName" label="家长姓名" width="120" />
+                <el-table-column prop="parentPhone" label="家长电话" />
+                <el-table-column prop="status" label="状态" width="100">
+                  <template #default="{ row }">
+                    <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
+          </el-tab-pane>
+          <el-tab-pane label="添加新学生" name="new">
+            <div class="add-new-student">
+              <el-form :model="newStudentForm" :rules="newStudentRules" ref="newStudentFormRef" label-width="100px">
+                <el-form-item label="学生姓名" prop="name">
+                  <el-input v-model="newStudentForm.name" placeholder="请输入学生姓名" />
+                </el-form-item>
+                <el-form-item label="年级">
+                  <el-select v-model="newStudentForm.gradeLevel" placeholder="选择年级" style="width: 100%;">
+                    <el-option v-for="grade in gradeOptions" :key="grade.value" :label="grade.label" :value="grade.value" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="家长姓名">
+                  <el-input v-model="newStudentForm.parentName" placeholder="请输入家长姓名（选填）" />
+                </el-form-item>
+                <el-form-item label="家长电话">
+                  <el-input v-model="newStudentForm.parentPhone" placeholder="请输入家长电话（选填）" />
+                </el-form-item>
+                <el-form-item>
+                  <el-checkbox v-model="newStudentIsTrial">试课</el-checkbox>
+                </el-form-item>
+                <el-form-item>
+                  <el-button type="primary" @click="addNewStudent">添加并加入班级</el-button>
+                </el-form-item>
+              </el-form>
+            </div>
+          </el-tab-pane>
+        </el-tabs>
+
+        <el-divider />
+
+        <h4>当前班级学生 ({{ currentClassStudents.length }}人)</h4>
+        <el-table :data="currentClassStudents" border style="margin-top: 10px;">
           <el-table-column prop="student.name" label="学生姓名" />
+          <el-table-column prop="student.gradeLevel" label="年级" width="100">
+            <template #default="{ row }">
+              {{ getGradeLabel(row.student.gradeLevel) }}
+            </template>
+          </el-table-column>
           <el-table-column prop="student.parentPhone" label="家长电话" />
           <el-table-column label="是否试课" width="100">
             <template #default="{ row }">
@@ -120,8 +243,8 @@
           </el-table-column>
           <el-table-column label="操作" width="150">
             <template #default="{ row }">
-              <el-button v-if="row.isTrial" type="success" size="small" @click="convertTrial(row)">转正</el-button>
-              <el-button type="danger" size="small" @click="removeStudent(row)">移除</el-button>
+              <el-button v-if="row.isTrial" type="success" size="small" @click="convertTrialInline(row)">转正</el-button>
+              <el-button type="danger" size="small" @click="removeStudentInline(row)">移除</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -150,36 +273,135 @@ const dialogVisible = ref(false)
 const studentDialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref()
+const newStudentFormRef = ref()
+const studentTableRef = ref()
 const currentClassId = ref<number | null>(null)
-const currentClassStudents = ref([])
-const selectedStudent = ref<number | null>(null)
+const currentClassInfo = ref<any>(null)
+const currentClassStudents = ref<any[]>([])
+const selectedStudents = ref<number[]>([])
 const isTrial = ref(false)
+const activeTab = ref('existing')
+
+const gradeOptions = [
+  { value: 'PRESCHOOL', label: '学前' },
+  { value: 'GRADE_1', label: '一年级' },
+  { value: 'GRADE_2', label: '二年级' },
+  { value: 'GRADE_3', label: '三年级' },
+  { value: 'GRADE_4', label: '四年级' },
+  { value: 'GRADE_5', label: '五年级' },
+  { value: 'GRADE_6', label: '六年级' },
+  { value: 'GRADE_7', label: '初一' },
+  { value: 'GRADE_8', label: '初二' },
+  { value: 'GRADE_9', label: '初三' },
+  { value: 'GRADE_10', label: '高一' },
+  { value: 'GRADE_11', label: '高二' },
+  { value: 'GRADE_12', label: '高三' },
+  { value: 'ADULT', label: '成人' }
+]
 
 const form = ref({
   id: null as number | null,
+  className: '',
+  gradeLevel: 'GRADE_1',
   courseId: null as number | null,
   teacherId: null as number | null,
   campusId: null as number | null,
   classroom: '',
-  dayOfWeek: 1,
-  startTime: new Date(2024, 0, 1, 9, 0),
-  endTime: new Date(2024, 0, 1, 10, 30)
+  unitPrice: null as number | null,
+  defaultDayOfWeek: null as number | null,
+  defaultStartTime: null as Date | null,
+  defaultEndTime: null as Date | null
 })
 
+const newStudentForm = ref({
+  name: '',
+  gradeLevel: 'GRADE_1',
+  parentName: '',
+  parentPhone: ''
+})
+
+const newStudentIsTrial = ref(false)
+
 const rules = {
+  className: [{ required: true, message: '请输入班级名称', trigger: 'blur' }],
+  gradeLevel: [{ required: true, message: '请选择年级', trigger: 'change' }],
   courseId: [{ required: true, message: '请选择课程', trigger: 'change' }],
   teacherId: [{ required: true, message: '请选择老师', trigger: 'change' }],
-  campusId: [{ required: true, message: '请选择校区', trigger: 'change' }],
-  classroom: [{ required: true, message: '请输入教室', trigger: 'blur' }],
-  dayOfWeek: [{ required: true, message: '请选择星期', trigger: 'change' }],
-  startTime: [{ required: true, message: '请选择开始时间', trigger: 'change' }],
-  endTime: [{ required: true, message: '请选择结束时间', trigger: 'change' }]
+  campusId: [{ required: true, message: '请选择校区', trigger: 'change' }]
+}
+
+const newStudentRules = {
+  name: [{ required: true, message: '请输入学生姓名', trigger: 'blur' }]
 }
 
 const availableStudents = computed(() => {
   const studentIds = currentClassStudents.value.map((s: any) => s.student.id)
-  return allStudents.value.filter((s: any) => !studentIds.includes(s.id))
+  return allStudents.value.filter((s: any) => !studentIds.includes(s.id) && s.status !== 'DELETED')
 })
+
+// 按年级排序，同年级在前
+const sortedAvailableStudents = computed(() => {
+  const classGrade = currentClassInfo.value?.gradeLevel
+  return [...availableStudents.value].sort((a: any, b: any) => {
+    const aMatch = a.gradeLevel === classGrade ? 0 : 1
+    const bMatch = b.gradeLevel === classGrade ? 0 : 1
+    if (aMatch !== bMatch) return aMatch - bMatch
+    return a.name.localeCompare(b.name)
+  })
+})
+
+const getCourseDefaultPrice = () => {
+  const course = courses.value.find((c: any) => c.id === form.value.courseId)
+  return course?.unitPrice || '-'
+}
+
+const getGradeLabel = (grade: string) => {
+  const gradeMap: Record<string, string> = {
+    'PRESCHOOL': '学前',
+    'GRADE_1': '一年级',
+    'GRADE_2': '二年级',
+    'GRADE_3': '三年级',
+    'GRADE_4': '四年级',
+    'GRADE_5': '五年级',
+    'GRADE_6': '六年级',
+    'GRADE_7': '初一',
+    'GRADE_8': '初二',
+    'GRADE_9': '初三',
+    'GRADE_10': '高一',
+    'GRADE_11': '高二',
+    'GRADE_12': '高三',
+    'ADULT': '成人'
+  }
+  return gradeMap[grade] || grade
+}
+
+const getStatusType = (status: string) => {
+  const types: Record<string, string> = {
+    'ACTIVE': 'success',
+    'INACTIVE': 'info',
+    'GRADUATED': 'primary',
+    'DELETED': 'danger'
+  }
+  return types[status] || 'info'
+}
+
+const getStatusLabel = (status: string) => {
+  const labels: Record<string, string> = {
+    'ACTIVE': '在读',
+    'INACTIVE': '停用',
+    'GRADUATED': '已毕业',
+    'DELETED': '已删除'
+  }
+  return labels[status] || status
+}
+
+// 开始时间变化时，自动设置结束时间为开始时间+2小时
+const handleStartTimeChange = (val: Date | null) => {
+  if (val && !form.value.defaultEndTime) {
+    const endTime = new Date(val.getTime() + 2 * 60 * 60 * 1000)
+    form.value.defaultEndTime = endTime
+  }
+}
 
 const fetchClasses = async () => {
   loading.value = true
@@ -214,13 +436,16 @@ const showAddDialog = () => {
   isEdit.value = false
   form.value = {
     id: null,
+    className: '',
+    gradeLevel: 'GRADE_1',
     courseId: null,
     teacherId: null,
     campusId: null,
     classroom: '',
-    dayOfWeek: 1,
-    startTime: new Date(2024, 0, 1, 9, 0),
-    endTime: new Date(2024, 0, 1, 10, 30)
+    unitPrice: null,
+    defaultDayOfWeek: null,
+    defaultStartTime: null,
+    defaultEndTime: null
   }
   dialogVisible.value = true
 }
@@ -229,13 +454,16 @@ const editClass = (row: any) => {
   isEdit.value = true
   form.value = {
     id: row.id,
-    courseId: row.course.id,
-    teacherId: row.teacher.id,
-    campusId: row.campus.id,
+    className: row.className,
+    gradeLevel: row.gradeLevel,
+    courseId: row.course?.id,
+    teacherId: row.teacher?.id,
+    campusId: row.campus?.id,
     classroom: row.classroom,
-    dayOfWeek: row.dayOfWeek,
-    startTime: dayjs(`2024-01-01 ${row.startTime}`).toDate(),
-    endTime: dayjs(`2024-01-01 ${row.endTime}`).toDate()
+    unitPrice: row.unitPrice,
+    defaultDayOfWeek: row.defaultDayOfWeek,
+    defaultStartTime: row.defaultStartTime ? dayjs(`2024-01-01 ${row.defaultStartTime}`).toDate() : null,
+    defaultEndTime: row.defaultEndTime ? dayjs(`2024-01-01 ${row.defaultEndTime}`).toDate() : null
   }
   dialogVisible.value = true
 }
@@ -243,18 +471,21 @@ const editClass = (row: any) => {
 const saveClass = async () => {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
-  
+
   try {
     const data = {
       course: { id: form.value.courseId },
       teacher: { id: form.value.teacherId },
       campus: { id: form.value.campusId },
+      className: form.value.className,
+      gradeLevel: form.value.gradeLevel,
       classroom: form.value.classroom,
-      dayOfWeek: form.value.dayOfWeek,
-      startTime: dayjs(form.value.startTime).format('HH:mm'),
-      endTime: dayjs(form.value.endTime).format('HH:mm')
+      unitPrice: form.value.unitPrice,
+      defaultDayOfWeek: form.value.defaultDayOfWeek,
+      defaultStartTime: form.value.defaultStartTime ? dayjs(form.value.defaultStartTime).format('HH:mm') : null,
+      defaultEndTime: form.value.defaultEndTime ? dayjs(form.value.defaultEndTime).format('HH:mm') : null
     }
-    
+
     if (isEdit.value && form.value.id) {
       await classApi.update(form.value.id, data)
       ElMessage.success('更新成功')
@@ -262,47 +493,140 @@ const saveClass = async () => {
       await classApi.create(data)
       ElMessage.success('添加成功')
     }
-    
+
     dialogVisible.value = false
     fetchClasses()
-  } catch (error) {
-    ElMessage.error(isEdit.value ? '更新失败' : '添加失败')
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || (isEdit.value ? '更新失败' : '添加失败'))
   }
 }
 
 const manageStudents = async (row: any) => {
   currentClassId.value = row.id
+  currentClassInfo.value = row
   currentClassStudents.value = row.students || []
+  selectedStudents.value = []
+  isTrial.value = false
+  activeTab.value = 'existing'
+  newStudentForm.value = { name: '', gradeLevel: row.gradeLevel, parentName: '', parentPhone: '' }
+  newStudentIsTrial.value = false
   studentDialogVisible.value = true
 }
 
-const addStudent = async () => {
-  if (!selectedStudent.value || !currentClassId.value) return
-  
+const handleSelectionChange = (selection: any[]) => {
+  selectedStudents.value = selection.map(s => s.id)
+}
+
+const addStudents = async () => {
+  if (!currentClassId.value || selectedStudents.value.length === 0) return
+
   try {
-    await classApi.addStudent(currentClassId.value, selectedStudent.value, isTrial.value)
-    ElMessage.success('添加成功')
-    selectedStudent.value = null
+    // 获取当前已添加的学生ID列表，用于过滤
+    const existingStudentIds = currentClassStudents.value.map((s: any) => s.student.id)
+    let addedCount = 0
+    let skippedCount = 0
+
+    for (const studentId of selectedStudents.value) {
+      // 检查学生是否已经在班级中
+      if (existingStudentIds.includes(studentId)) {
+        skippedCount++
+        continue
+      }
+      try {
+        await classApi.addStudent(currentClassId.value, studentId, isTrial.value)
+        addedCount++
+      } catch (err: any) {
+        if (err.response?.data?.message?.includes('已在班级中')) {
+          skippedCount++
+        } else {
+          throw err
+        }
+      }
+    }
+
+    if (addedCount > 0) {
+      ElMessage.success(`成功添加 ${addedCount} 名学生`)
+    }
+    if (skippedCount > 0) {
+      ElMessage.warning(`${skippedCount} 名学生已在班级中，已跳过`)
+    }
+
+    selectedStudents.value = []
     isTrial.value = false
-    fetchClasses()
-    // 刷新当前班级学生列表
+    // 先刷新班级列表
+    await fetchClasses()
+    // 再刷新当前班级学生列表
     const res = await classApi.getById(currentClassId.value)
     currentClassStudents.value = res.data?.students || []
-  } catch (error) {
-    ElMessage.error('添加失败')
+    currentClassInfo.value = res.data
+    // 刷新可选学生列表
+    await fetchOptions()
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || '添加失败')
   }
 }
 
-const removeStudent = async (row: any) => {
+const addNewStudent = async () => {
+  const valid = await newStudentFormRef.value?.validate().catch(() => false)
+  if (!valid) return
+
   if (!currentClassId.value) return
-  
+
+  try {
+    // 1. 创建新学生
+    const studentRes = await studentApi.create(newStudentForm.value)
+    const newStudentId = studentRes.data.id
+
+    if (!newStudentId) {
+      ElMessage.error('创建学生失败')
+      return
+    }
+
+    // 2. 添加到班级
+    await classApi.addStudent(currentClassId.value, newStudentId, newStudentIsTrial.value)
+
+    ElMessage.success('新学生已创建并加入班级')
+    newStudentForm.value = { name: '', gradeLevel: currentClassInfo.value?.gradeLevel || 'GRADE_1', parentName: '', parentPhone: '' }
+    newStudentIsTrial.value = false
+
+    // 刷新数据
+    await fetchClasses()
+    await fetchOptions()
+    const res = await classApi.getById(currentClassId.value)
+    currentClassStudents.value = res.data?.students || []
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || '添加失败')
+  }
+}
+
+const removeStudent = async (classRow: any, studentRow: any) => {
   try {
     await ElMessageBox.confirm('确定要移除此学生吗？', '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'warning'
     })
-    
+
+    await classApi.removeStudent(classRow.id, studentRow.student.id)
+    ElMessage.success('移除成功')
+    fetchClasses()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('移除失败')
+    }
+  }
+}
+
+const removeStudentInline = async (row: any) => {
+  if (!currentClassId.value) return
+
+  try {
+    await ElMessageBox.confirm('确定要移除此学生吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+
     await classApi.removeStudent(currentClassId.value, row.student.id)
     ElMessage.success('移除成功')
     fetchClasses()
@@ -315,9 +639,19 @@ const removeStudent = async (row: any) => {
   }
 }
 
-const convertTrial = async (row: any) => {
+const convertTrial = async (classRow: any, studentRow: any) => {
+  try {
+    await classApi.convertTrial(classRow.id, studentRow.student.id)
+    ElMessage.success('转正成功')
+    fetchClasses()
+  } catch (error) {
+    ElMessage.error('转正失败')
+  }
+}
+
+const convertTrialInline = async (row: any) => {
   if (!currentClassId.value) return
-  
+
   try {
     await classApi.convertTrial(currentClassId.value, row.student.id)
     ElMessage.success('转正成功')
@@ -346,12 +680,50 @@ onMounted(() => {
   align-items: center;
 }
 
-.student-manage {
+.student-list {
   padding: 20px;
+  background-color: #f5f7fa;
 }
 
-.add-student {
+.student-list h4 {
+  margin-bottom: 15px;
+  color: #606266;
+}
+
+.student-manage {
+  padding: 10px;
+}
+
+.class-info-bar {
+  margin-bottom: 20px;
+  display: flex;
+  gap: 10px;
+}
+
+.student-table-section {
+  margin-bottom: 20px;
+}
+
+.table-header {
   display: flex;
   align-items: center;
+  margin-bottom: 15px;
+  padding: 10px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+}
+
+.add-new-student {
+  max-width: 500px;
+}
+
+.form-tip {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 5px;
+}
+
+.text-gray {
+  color: #909399;
 }
 </style>

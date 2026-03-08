@@ -13,6 +13,7 @@ export interface Lesson {
 }
 
 export const lessonApi = {
+  getAll: () => api.get('/lessons'),
   getById: (id: number) => api.get(`/lessons/${id}`),
   getByClass: (classId: number) => api.get(`/lessons/class/${classId}`),
   getByTeacherAndDate: (teacherId: number, date: string) => 

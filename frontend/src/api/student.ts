@@ -12,6 +12,7 @@ export interface Student {
 export const studentApi = {
   getAll: () => api.get('/students'),
   getById: (id: number) => api.get(`/students/${id}`),
+  getClasses: (id: number) => api.get(`/students/${id}/classes`),
   search: (keyword: string) => api.get(`/students/search?keyword=${keyword}`),
   create: (data: Partial<Student>) => api.post('/students', data),
   update: (id: number, data: Partial<Student>) => api.put(`/students/${id}`, data),

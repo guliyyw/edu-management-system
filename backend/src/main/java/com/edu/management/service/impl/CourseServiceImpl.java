@@ -55,8 +55,14 @@ public class CourseServiceImpl implements CourseService {
     public void delete(Long id) {
         Course course = courseRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("课程不存在"));
-        course.setStatus(CourseStatus.INACTIVE);
-        courseRepository.save(course);
+
+        // 软删除逻辑：第一次标记为DELETED，第二次彻底删除
+        if (course.getStatus() == CourseStatus.DELETED) {
+            courseRepository.delete(course);
+        } else {
+            course.setStatus(CourseStatus.DELETED);
+            courseRepository.save(course);
+        }
     }
     
     @Override

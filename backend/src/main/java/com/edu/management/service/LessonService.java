@@ -24,6 +24,9 @@ public interface LessonService {
     
     List<LessonDto> getByCampusIdAndDate(Long campusId, LocalDate date);
     
+    // 获取所有课节
+    List<LessonDto> getAllLessons();
+    
     // 批量生成课节
     List<LessonDto> generateLessons(Long classId, LocalDate startDate, LocalDate endDate);
     

@@ -1,6 +1,7 @@
 package com.edu.management.controller;
 
 import com.edu.management.dto.ApiResponse;
+import com.edu.management.dto.ClassDto;
 import com.edu.management.dto.StudentDto;
 import com.edu.management.service.StudentService;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +15,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @CrossOrigin(origins = "*")
 public class StudentController {
-    
+
     private final StudentService studentService;
     
     @PostMapping
@@ -52,5 +53,11 @@ public class StudentController {
     @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
     public ApiResponse<List<StudentDto>> search(@RequestParam String keyword) {
         return ApiResponse.success(studentService.search(keyword));
+    }
+
+    @GetMapping("/{id}/classes")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    public ApiResponse<List<ClassDto>> getStudentClasses(@PathVariable Long id) {
+        return ApiResponse.success(studentService.getStudentClasses(id));
     }
 }

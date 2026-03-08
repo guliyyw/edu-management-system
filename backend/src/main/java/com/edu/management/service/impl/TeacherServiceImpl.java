@@ -79,8 +79,14 @@ public class TeacherServiceImpl implements TeacherService {
     public void delete(Long id) {
         Teacher teacher = teacherRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("老师不存在"));
-        teacher.setStatus(TeacherStatus.INACTIVE);
-        teacherRepository.save(teacher);
+
+        // 软删除逻辑：第一次标记为DELETED，第二次彻底删除
+        if (teacher.getStatus() == TeacherStatus.DELETED) {
+            teacherRepository.delete(teacher);
+        } else {
+            teacher.setStatus(TeacherStatus.DELETED);
+            teacherRepository.save(teacher);
+        }
     }
     
     @Override

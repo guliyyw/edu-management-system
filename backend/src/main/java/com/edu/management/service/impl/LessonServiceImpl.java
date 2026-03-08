@@ -128,34 +128,49 @@ public class LessonServiceImpl implements LessonService {
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<LessonDto> getAllLessons() {
+        return lessonRepository.findAll().stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
     
     @Override
     @Transactional
     public List<LessonDto> generateLessons(Long classId, LocalDate startDate, LocalDate endDate) {
         ClassEntity classEntity = classRepository.findById(classId)
                 .orElseThrow(() -> new RuntimeException("班级不存在"));
-        
+
+        // 如果没有设置默认上课时间，无法批量排课
+        if (classEntity.getDefaultDayOfWeek() == null ||
+            classEntity.getDefaultStartTime() == null ||
+            classEntity.getDefaultEndTime() == null) {
+            throw new RuntimeException("班级未设置默认上课时间，无法批量排课。请先设置班级的默认上课时间。");
+        }
+
         List<LessonDto> generatedLessons = new ArrayList<>();
-        
+
         LocalDate currentDate = startDate;
         while (!currentDate.isAfter(endDate)) {
             // 检查是否是上课日
-            if (currentDate.getDayOfWeek().getValue() == classEntity.getDayOfWeek()) {
+            if (currentDate.getDayOfWeek().getValue() == classEntity.getDefaultDayOfWeek()) {
                 Lesson lesson = new Lesson();
                 lesson.setClassEntity(classEntity);
                 lesson.setDate(currentDate);
-                lesson.setStartTime(classEntity.getStartTime());
-                lesson.setEndTime(classEntity.getEndTime());
+                lesson.setStartTime(classEntity.getDefaultStartTime());
+                lesson.setEndTime(classEntity.getDefaultEndTime());
                 lesson.setClassroom(classEntity.getClassroom());
                 lesson.setStatus(LessonStatus.SCHEDULED);
-                
+
                 lesson = lessonRepository.save(lesson);
                 createAttendanceRecords(lesson, classEntity);
                 generatedLessons.add(toDto(lesson));
             }
             currentDate = currentDate.plusDays(1);
         }
-        
+
         return generatedLessons;
     }
     

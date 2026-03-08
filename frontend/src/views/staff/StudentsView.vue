@@ -5,6 +5,20 @@
         <div class="card-header">
           <span>学生管理</span>
           <div class="header-actions">
+            <el-select
+              v-model="statusFilter"
+              placeholder="状态筛选"
+              style="width: 120px; margin-right: 10px;"
+              size="small"
+              clearable
+              @change="handleFilterChange"
+            >
+              <el-option label="全部" value="" />
+              <el-option label="在读" value="ACTIVE" />
+              <el-option label="停用" value="INACTIVE" />
+              <el-option label="已毕业" value="GRADUATED" />
+              <el-option label="已删除" value="DELETED" />
+            </el-select>
             <el-input
               v-model="searchKeyword"
               placeholder="搜索学生姓名或家长电话"
@@ -24,13 +38,18 @@
         </div>
       </template>
       
-      <el-table :data="students" border v-loading="loading">
+      <el-table :data="filteredStudents" border v-loading="loading">
         <el-table-column prop="name" label="学生姓名" width="120" />
+        <el-table-column prop="gradeLevel" label="年级" width="100">
+          <template #default="{ row }">
+            <el-tag :type="getGradeType(row.gradeLevel)" size="small">{{ getGradeLabel(row.gradeLevel) }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="parentName" label="家长姓名" width="120" />
         <el-table-column prop="parentPhone" label="家长电话" width="150" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">{{ row.status }}</el-tag>
+            <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="创建时间" width="180">
@@ -38,10 +57,16 @@
             {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="150">
+        <el-table-column label="操作" width="180">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="editStudent(row)">编辑</el-button>
-            <el-button type="danger" size="small" @click="deleteStudent(row.id)">删除</el-button>
+            <el-button
+              :type="row.status === 'DELETED' ? 'danger' : 'warning'"
+              size="small"
+              @click="deleteStudent(row)"
+            >
+              {{ row.status === 'DELETED' ? '彻底删除' : '删除' }}
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -53,11 +78,21 @@
         <el-form-item label="学生姓名" prop="name">
           <el-input v-model="form.name" placeholder="请输入学生姓名" />
         </el-form-item>
-        <el-form-item label="家长姓名" prop="parentName">
-          <el-input v-model="form.parentName" placeholder="请输入家长姓名" />
+        <el-form-item label="年级" prop="gradeLevel">
+          <el-select v-model="form.gradeLevel" placeholder="请选择年级" style="width: 100%">
+            <el-option
+              v-for="item in gradeOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
         </el-form-item>
-        <el-form-item label="家长电话" prop="parentPhone">
-          <el-input v-model="form.parentPhone" placeholder="请输入家长电话" />
+        <el-form-item label="家长姓名">
+          <el-input v-model="form.parentName" placeholder="请输入家长姓名（选填）" />
+        </el-form-item>
+        <el-form-item label="家长电话">
+          <el-input v-model="form.parentPhone" placeholder="请输入家长电话（选填）" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -69,7 +104,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { studentApi } from '@/api/student'
 import dayjs from 'dayjs'
@@ -77,6 +112,7 @@ import dayjs from 'dayjs'
 const loading = ref(false)
 const students = ref([])
 const searchKeyword = ref('')
+const statusFilter = ref('')
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref()
@@ -84,18 +120,85 @@ const formRef = ref()
 const form = ref({
   id: null as number | null,
   name: '',
+  gradeLevel: 'GRADE_1',
   parentName: '',
   parentPhone: ''
 })
 
+const gradeOptions = [
+  { value: 'PRESCHOOL', label: '学前' },
+  { value: 'GRADE_1', label: '一年级' },
+  { value: 'GRADE_2', label: '二年级' },
+  { value: 'GRADE_3', label: '三年级' },
+  { value: 'GRADE_4', label: '四年级' },
+  { value: 'GRADE_5', label: '五年级' },
+  { value: 'GRADE_6', label: '六年级' },
+  { value: 'GRADE_7', label: '七年级' },
+  { value: 'GRADE_8', label: '八年级' },
+  { value: 'GRADE_9', label: '九年级' },
+  { value: 'GRADE_10', label: '高一' },
+  { value: 'GRADE_11', label: '高二' },
+  { value: 'GRADE_12', label: '高三' },
+  { value: 'ADULT', label: '成人' }
+]
+
+const getGradeLabel = (grade: string) => {
+  const option = gradeOptions.find(g => g.value === grade)
+  return option?.label || grade
+}
+
+const getGradeType = (grade: string) => {
+  const types: Record<string, string> = {
+    'PRESCHOOL': 'warning',
+    'GRADE_1': '',
+    'GRADE_2': '',
+    'GRADE_3': '',
+    'GRADE_4': '',
+    'GRADE_5': '',
+    'GRADE_6': 'success',
+    'GRADE_7': 'info',
+    'GRADE_8': 'info',
+    'GRADE_9': 'info',
+    'GRADE_10': 'primary',
+    'GRADE_11': 'primary',
+    'GRADE_12': 'primary',
+    'ADULT': 'danger'
+  }
+  return types[grade] || ''
+}
+
 const rules = {
   name: [{ required: true, message: '请输入学生姓名', trigger: 'blur' }],
-  parentName: [{ required: true, message: '请输入家长姓名', trigger: 'blur' }],
-  parentPhone: [{ required: true, message: '请输入家长电话', trigger: 'blur' }]
+  gradeLevel: [{ required: true, message: '请选择年级', trigger: 'change' }]
 }
+
+const filteredStudents = computed(() => {
+  if (!statusFilter.value) return students.value
+  return students.value.filter((s: any) => s.status === statusFilter.value)
+})
 
 const formatDate = (date: string) => {
   return dayjs(date).format('YYYY-MM-DD HH:mm')
+}
+
+const getStatusType = (status: string) => {
+  const types: Record<string, string> = {
+    'ACTIVE': 'success',
+    'INACTIVE': 'info',
+    'GRADUATED': 'primary',
+    'DELETED': 'danger'
+  }
+  return types[status] || 'info'
+}
+
+const getStatusLabel = (status: string) => {
+  const labels: Record<string, string> = {
+    'ACTIVE': '在读',
+    'INACTIVE': '停用',
+    'GRADUATED': '已毕业',
+    'DELETED': '已删除'
+  }
+  return labels[status] || status
 }
 
 const fetchStudents = async () => {
@@ -115,7 +218,7 @@ const handleSearch = async () => {
     fetchStudents()
     return
   }
-  
+
   try {
     const res = await studentApi.search(searchKeyword.value)
     students.value = res.data || []
@@ -124,11 +227,16 @@ const handleSearch = async () => {
   }
 }
 
+const handleFilterChange = () => {
+  // 筛选通过计算属性自动处理
+}
+
 const showAddDialog = () => {
   isEdit.value = false
   form.value = {
     id: null,
     name: '',
+    gradeLevel: 'GRADE_1',
     parentName: '',
     parentPhone: ''
   }
@@ -140,6 +248,7 @@ const editStudent = (row: any) => {
   form.value = {
     id: row.id,
     name: row.name,
+    gradeLevel: row.gradeLevel || 'GRADE_1',
     parentName: row.parentName,
     parentPhone: row.parentPhone
   }
@@ -166,16 +275,19 @@ const saveStudent = async () => {
   }
 }
 
-const deleteStudent = async (id: number) => {
+const deleteStudent = async (row: any) => {
+  const isDeleted = row.status === 'DELETED'
+  const confirmText = isDeleted ? '确定要彻底删除此学生吗？此操作不可恢复！' : '确定要删除此学生吗？'
+
   try {
-    await ElMessageBox.confirm('确定要删除此学生吗？', '提示', {
+    await ElMessageBox.confirm(confirmText, '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
-      type: 'warning'
+      type: isDeleted ? 'error' : 'warning'
     })
-    
-    await studentApi.delete(id)
-    ElMessage.success('删除成功')
+
+    await studentApi.delete(row.id)
+    ElMessage.success(isDeleted ? '已彻底删除' : '已标记删除')
     fetchStudents()
   } catch (error) {
     if (error !== 'cancel') {

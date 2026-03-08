@@ -21,8 +21,8 @@ public interface ClassRepository extends JpaRepository<ClassEntity, Long> {
     @Query("SELECT c FROM ClassEntity c JOIN c.students cs WHERE cs.student.id = :studentId AND c.status = :status")
     List<ClassEntity> findByStudentIdAndStatus(@Param("studentId") Long studentId, @Param("status") ClassStatus status);
     
-    @Query("SELECT c FROM ClassEntity c WHERE c.teacher.id = :teacherId AND c.dayOfWeek = :dayOfWeek AND c.status = :status")
-    List<ClassEntity> findByTeacherIdAndDayOfWeekAndStatus(@Param("teacherId") Long teacherId, 
-                                                            @Param("dayOfWeek") Integer dayOfWeek, 
+    @Query("SELECT c FROM ClassEntity c WHERE c.teacher.id = :teacherId AND c.defaultDayOfWeek = :dayOfWeek AND c.status = :status")
+    List<ClassEntity> findByTeacherIdAndDayOfWeekAndStatus(@Param("teacherId") Long teacherId,
+                                                            @Param("dayOfWeek") Integer dayOfWeek,
                                                             @Param("status") ClassStatus status);
 }
