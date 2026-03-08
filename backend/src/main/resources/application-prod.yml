@@ -1,0 +1,29 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: edu-management-system
+  
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/edu_management}
+    username: ${SPRING_DATASOURCE_USERNAME:edu}
+    password: ${SPRING_DATASOURCE_PASSWORD:edu123}
+    driver-class-name: org.postgresql.Driver
+
+jwt:
+  secret: ${JWT_SECRET:edu-management-system-secret-key-2024-change-in-production}
+  expiration: 86400000
+
+logging:
+  level:
+    com.edu.management: INFO
+    org.springframework.security: WARN
