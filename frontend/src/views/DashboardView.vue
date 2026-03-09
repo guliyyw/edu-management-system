@@ -40,8 +40,8 @@
             <el-icon><Reading /></el-icon>
           </div>
           <div class="stat-info">
-            <div class="stat-value">{{ stats.courseCount }}</div>
-            <div class="stat-label">课程数量</div>
+            <div class="stat-value">{{ stats.classCount }}</div>
+            <div class="stat-label">班级数量</div>
           </div>
         </el-card>
       </el-col>
@@ -77,17 +77,24 @@
           <template #header>
             <div class="card-header">
               <span>系统公告</span>
+              <el-button v-if="isAdmin || isStaff" text @click="$router.push('/announcements')">
+                管理公告
+              </el-button>
             </div>
           </template>
-          <el-timeline>
+          <el-timeline v-loading="noticeLoading">
             <el-timeline-item
-              v-for="(notice, index) in notices"
-              :key="index"
+              v-for="notice in notices"
+              :key="notice.id"
               :type="notice.type"
-              :timestamp="notice.time"
+              :timestamp="formatDate(notice.createdAt)"
             >
-              {{ notice.content }}
+              <el-tooltip :content="notice.content" placement="top" :show-after="500">
+                <span class="notice-title">{{ notice.title }}</span>
+              </el-tooltip>
+              <el-tag v-if="notice.isPinned" size="small" type="danger" class="ml-5">置顶</el-tag>
             </el-timeline-item>
+            <el-empty v-if="notices.length === 0" description="暂无公告" :image-size="60" />
           </el-timeline>
         </el-card>
       </el-col>
@@ -96,14 +103,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { campusApi } from '@/api/campus'
 import { teacherApi } from '@/api/teacher'
 import { studentApi } from '@/api/student'
-import { courseApi } from '@/api/course'
+import { classApi } from '@/api/class'
 import { lessonApi } from '@/api/lesson'
+import { announcementApi, type Announcement } from '@/api/announcement'
 import dayjs from 'dayjs'
 
 const router = useRouter()
@@ -114,29 +122,53 @@ const stats = ref({
   campusCount: 0,
   teacherCount: 0,
   studentCount: 0,
-  courseCount: 0
+  classCount: 0
 })
 const todayLessons = ref([])
-const notices = ref([
-  { type: 'primary', time: '2024-03-08', content: '系统升级完成，新增路程时间配置功能' },
-  { type: 'success', time: '2024-03-07', content: '新学期排课工作已经开始，请各位老师及时确认课表' },
-  { type: 'warning', time: '2024-03-05', content: '清明节放假安排已发布，请查看通知' }
-])
+const notices = ref<Announcement[]>([])
+const noticeLoading = ref(false)
 
 const fetchStats = async () => {
   try {
-    const [campuses, teachers, students, courses] = await Promise.all([
-      campusApi.getAll(),
-      teacherApi.getAll(),
-      studentApi.getAll(),
-      courseApi.getAll()
-    ])
+    const role = authStore.user?.role
     
-    stats.value = {
-      campusCount: campuses.data?.length || 0,
-      teacherCount: teachers.data?.length || 0,
-      studentCount: students.data?.length || 0,
-      courseCount: courses.data?.length || 0
+    if (role === 'ADMIN' || role === 'STAFF') {
+      // 管理员和教务可以看到所有统计数据
+      const [campuses, teachers, students, classes] = await Promise.all([
+        campusApi.getAll(),
+        teacherApi.getAll(),
+        studentApi.getAll(),
+        classApi.getAll()
+      ])
+
+      stats.value = {
+        campusCount: campuses.data?.length || 0,
+        teacherCount: teachers.data?.length || 0,
+        studentCount: students.data?.length || 0,
+        classCount: classes.data?.length || 0
+      }
+    } else if (role === 'TEACHER' && authStore.user?.teacherId) {
+      // 老师只能看到与自己相关的统计数据
+      const [campuses, teacherClasses] = await Promise.all([
+        campusApi.getAll(),
+        classApi.getByTeacher(authStore.user.teacherId)
+      ])
+      
+      // 获取老师的学生数量
+      const classList = teacherClasses.data || []
+      const studentIds = new Set()
+      classList.forEach((cls: any) => {
+        cls.students?.forEach((s: any) => {
+          if (s.student?.id) studentIds.add(s.student.id)
+        })
+      })
+
+      stats.value = {
+        campusCount: campuses.data?.length || 0,
+        teacherCount: 1, // 老师自己
+        studentCount: studentIds.size,
+        classCount: classList.length
+      }
     }
   } catch (error) {
     console.error('获取统计数据失败:', error)
@@ -144,12 +176,26 @@ const fetchStats = async () => {
 }
 
 const fetchTodayLessons = async () => {
-  if (!authStore.user?.teacherId) return
-  
   loading.value = true
   try {
     const today = dayjs().format('YYYY-MM-DD')
-    const res = await lessonApi.getByTeacherAndDate(authStore.user.teacherId, today)
+    let res
+    
+    if (authStore.user?.teacherId) {
+      // 老师角色 - 查看自己的课表
+      res = await lessonApi.getByTeacherAndDate(authStore.user.teacherId, today)
+    } else if (authStore.user?.role === 'ADMIN' || authStore.user?.role === 'STAFF') {
+      // 管理员或教务角色 - 查看所有今日课表
+      res = await lessonApi.getAll()
+      // 过滤出今日的课程
+      if (res.data) {
+        res.data = res.data.filter((lesson: any) => lesson.date === today)
+      }
+    } else {
+      todayLessons.value = []
+      return
+    }
+    
     todayLessons.value = res.data || []
   } catch (error) {
     console.error('获取今日课表失败:', error)
@@ -162,9 +208,29 @@ const goToAttendance = (lesson: any) => {
   router.push(`/my-attendance?lessonId=${lesson.id}`)
 }
 
+const fetchNotices = async () => {
+  noticeLoading.value = true
+  try {
+    const res = await announcementApi.getTop5()
+    notices.value = res.data || []
+  } catch (error) {
+    console.error('获取公告失败:', error)
+  } finally {
+    noticeLoading.value = false
+  }
+}
+
+const formatDate = (dateStr: string) => {
+  return dayjs(dateStr).format('YYYY-MM-DD')
+}
+
+const isAdmin = computed(() => authStore.user?.role === 'ADMIN')
+const isStaff = computed(() => authStore.user?.role === 'STAFF')
+
 onMounted(() => {
   fetchStats()
   fetchTodayLessons()
+  fetchNotices()
 })
 </script>
 
@@ -231,5 +297,18 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.notice-title {
+  cursor: pointer;
+  color: #303133;
+}
+
+.notice-title:hover {
+  color: #409eff;
+}
+
+.ml-5 {
+  margin-left: 5px;
 }
 </style>

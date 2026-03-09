@@ -8,6 +8,7 @@ import com.edu.management.repository.*;
 import com.edu.management.service.ClassService;
 import com.edu.management.service.TravelTimeService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +18,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ClassServiceImpl implements ClassService {
 
     private final ClassRepository classRepository;
@@ -25,6 +27,8 @@ public class ClassServiceImpl implements ClassService {
     private final CampusRepository campusRepository;
     private final StudentRepository studentRepository;
     private final ClassStudentRepository classStudentRepository;
+    private final LessonRepository lessonRepository;
+    private final LessonAttendanceRepository lessonAttendanceRepository;
     private final TravelTimeService travelTimeService;
 
     @Override
@@ -41,6 +45,7 @@ public class ClassServiceImpl implements ClassService {
         classEntity.setClassName(dto.getClassName());
         classEntity.setGradeLevel(dto.getGradeLevel() != null ? dto.getGradeLevel() : GradeLevel.GRADE_1);
         classEntity.setUnitPrice(dto.getUnitPrice());
+        classEntity.setTeacherFee(dto.getTeacherFee());
         classEntity.setDefaultDayOfWeek(dto.getDefaultDayOfWeek());
         classEntity.setDefaultStartTime(dto.getDefaultStartTime());
         classEntity.setDefaultEndTime(dto.getDefaultEndTime());
@@ -66,6 +71,7 @@ public class ClassServiceImpl implements ClassService {
         classEntity.setClassName(dto.getClassName());
         classEntity.setGradeLevel(dto.getGradeLevel() != null ? dto.getGradeLevel() : classEntity.getGradeLevel());
         classEntity.setUnitPrice(dto.getUnitPrice());
+        classEntity.setTeacherFee(dto.getTeacherFee());
         classEntity.setDefaultDayOfWeek(dto.getDefaultDayOfWeek());
         classEntity.setDefaultStartTime(dto.getDefaultStartTime());
         classEntity.setDefaultEndTime(dto.getDefaultEndTime());
@@ -82,22 +88,43 @@ public class ClassServiceImpl implements ClassService {
     public void delete(Long id) {
         ClassEntity classEntity = classRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("班级不存在"));
-        classEntity.setStatus(ClassStatus.CANCELLED);
-        classRepository.save(classEntity);
+
+        // 彻底删除：先删除关联的课节签到记录
+        List<Lesson> lessons = lessonRepository.findByClassEntityId(id);
+        for (Lesson lesson : lessons) {
+            lessonAttendanceRepository.deleteByLessonId(lesson.getId());
+        }
+
+        // 删除关联的课节
+        lessonRepository.deleteByClassEntityId(id);
+
+        // 删除班级学生关联
+        classStudentRepository.deleteByClassEntityId(id);
+
+        // 最后删除班级
+        classRepository.delete(classEntity);
     }
 
     @Override
     @Transactional(readOnly = true)
     public ClassDto getById(Long id) {
-        ClassEntity classEntity = classRepository.findById(id)
+        log.info("[班级服务] 获取班级详情，ID: {}", id);
+        ClassEntity classEntity = classRepository.findByIdWithStudents(id)
                 .orElseThrow(() -> new RuntimeException("班级不存在"));
-        return toDto(classEntity);
+        log.info("[班级服务] 查询到班级: {}，学生数量: {}", classEntity.getClassName(),
+                classEntity.getStudents() != null ? classEntity.getStudents().size() : 0);
+        ClassDto dto = toDto(classEntity);
+        log.info("[班级服务] 转换后的DTO学生数量: {}", dto.getStudents() != null ? dto.getStudents().size() : 0);
+        return dto;
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<ClassDto> getAll() {
-        return classRepository.findAll().stream()
+        log.info("[班级服务] 获取所有班级");
+        List<ClassEntity> entities = classRepository.findAllWithStudents(ClassStatus.ACTIVE);
+        log.info("[班级服务] 查询到班级数量: {}", entities.size());
+        return entities.stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
@@ -105,7 +132,7 @@ public class ClassServiceImpl implements ClassService {
     @Override
     @Transactional(readOnly = true)
     public List<ClassDto> getByTeacherId(Long teacherId) {
-        return classRepository.findByTeacherIdAndStatus(teacherId, ClassStatus.ACTIVE).stream()
+        return classRepository.findByTeacherIdAndStatusWithStudents(teacherId, ClassStatus.ACTIVE).stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
@@ -113,7 +140,7 @@ public class ClassServiceImpl implements ClassService {
     @Override
     @Transactional(readOnly = true)
     public List<ClassDto> getByCampusId(Long campusId) {
-        return classRepository.findByCampusIdAndStatus(campusId, ClassStatus.ACTIVE).stream()
+        return classRepository.findByCampusIdAndStatusWithStudents(campusId, ClassStatus.ACTIVE).stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
@@ -137,13 +164,18 @@ public class ClassServiceImpl implements ClassService {
     @Override
     @Transactional
     public void addStudentToClass(Long classId, Long studentId, Boolean isTrial) {
+        log.info("[班级服务] 添加学生到班级，班级ID: {}，学生ID: {}，是否试课: {}", classId, studentId, isTrial);
+
         ClassEntity classEntity = classRepository.findById(classId)
                 .orElseThrow(() -> new RuntimeException("班级不存在"));
+        log.info("[班级服务] 找到班级: {}", classEntity.getClassName());
 
         Student student = studentRepository.findById(studentId)
                 .orElseThrow(() -> new RuntimeException("学生不存在"));
+        log.info("[班级服务] 找到学生: {}", student.getName());
 
         if (classStudentRepository.existsByClassEntityIdAndStudentId(classId, studentId)) {
+            log.warn("[班级服务] 学生已在班级中");
             throw new RuntimeException("学生已在班级中");
         }
 
@@ -152,7 +184,12 @@ public class ClassServiceImpl implements ClassService {
         classStudent.setStudent(student);
         classStudent.setIsTrial(isTrial);
 
-        classStudentRepository.save(classStudent);
+        ClassStudent saved = classStudentRepository.save(classStudent);
+        log.info("[班级服务] 学生添加成功，ClassStudent ID: {}", saved.getId());
+
+        // 强制刷新班级实体，确保学生集合被更新
+        classEntity.getStudents().add(saved);
+        log.info("[班级服务] 班级学生集合已更新，当前数量: {}", classEntity.getStudents().size());
     }
 
     @Override
@@ -181,6 +218,7 @@ public class ClassServiceImpl implements ClassService {
                 .name(classEntity.getCourse().getName())
                 .type(classEntity.getCourse().getType())
                 .unitPrice(classEntity.getCourse().getUnitPrice())
+                .trialPrice(classEntity.getCourse().getTrialPrice())
                 .build();
 
         TeacherDto teacherDto = TeacherDto.builder()
@@ -195,17 +233,24 @@ public class ClassServiceImpl implements ClassService {
                 .build();
 
         List<ClassStudentDto> studentDtos = classEntity.getStudents().stream()
-                .map(cs -> ClassStudentDto.builder()
-                        .id(cs.getId())
-                        .student(StudentDto.builder()
-                                .id(cs.getStudent().getId())
-                                .name(cs.getStudent().getName())
-                                .parentPhone(cs.getStudent().getParentPhone())
-                                .gradeLevel(cs.getStudent().getGradeLevel())
-                                .build())
-                        .isTrial(cs.getIsTrial())
-                        .convertedAt(cs.getConvertedAt())
-                        .build())
+                .map(cs -> {
+                    Student student = cs.getStudent();
+                    return ClassStudentDto.builder()
+                            .id(cs.getId())
+                            .student(StudentDto.builder()
+                                    .id(student.getId())
+                                    .name(student.getName())
+                                    .parentName(student.getParentName())
+                                    .parentPhone(student.getParentPhone())
+                                    .gradeLevel(student.getGradeLevel())
+                                    .status(student.getStatus())
+                                    .createdAt(student.getCreatedAt())
+                                    .build())
+                            .isTrial(cs.getIsTrial())
+                            .convertedAt(cs.getConvertedAt())
+                            .createdAt(cs.getCreatedAt())
+                            .build();
+                })
                 .collect(Collectors.toList());
 
         return ClassDto.builder()
@@ -217,6 +262,7 @@ public class ClassServiceImpl implements ClassService {
                 .className(classEntity.getClassName())
                 .gradeLevel(classEntity.getGradeLevel())
                 .unitPrice(classEntity.getUnitPrice())
+                .teacherFee(classEntity.getTeacherFee())
                 .defaultDayOfWeek(classEntity.getDefaultDayOfWeek())
                 .defaultStartTime(classEntity.getDefaultStartTime())
                 .defaultEndTime(classEntity.getDefaultEndTime())

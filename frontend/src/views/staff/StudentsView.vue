@@ -6,6 +6,22 @@
           <span>学生管理</span>
           <div class="header-actions">
             <el-select
+              v-model="gradeFilter"
+              placeholder="年级筛选"
+              style="width: 120px; margin-right: 10px;"
+              size="small"
+              clearable
+              @change="handleFilterChange"
+            >
+              <el-option label="全部年级" value="" />
+              <el-option
+                v-for="item in gradeOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
+            <el-select
               v-model="statusFilter"
               placeholder="状态筛选"
               style="width: 120px; margin-right: 10px;"
@@ -13,11 +29,9 @@
               clearable
               @change="handleFilterChange"
             >
-              <el-option label="全部" value="" />
+              <el-option label="全部状态" value="" />
               <el-option label="在读" value="ACTIVE" />
               <el-option label="停用" value="INACTIVE" />
-              <el-option label="已毕业" value="GRADUATED" />
-              <el-option label="已删除" value="DELETED" />
             </el-select>
             <el-input
               v-model="searchKeyword"
@@ -38,7 +52,7 @@
         </div>
       </template>
       
-      <el-table :data="filteredStudents" border v-loading="loading">
+      <el-table :data="filteredStudents" border v-loading="loading" height="calc(100vh - 240px)" style="width: 100%">
         <el-table-column prop="name" label="学生姓名" width="120" />
         <el-table-column prop="gradeLevel" label="年级" width="100">
           <template #default="{ row }">
@@ -57,15 +71,15 @@
             {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="180">
+        <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="editStudent(row)">编辑</el-button>
             <el-button
-              :type="row.status === 'DELETED' ? 'danger' : 'warning'"
+              :type="row.status === 'ACTIVE' ? 'warning' : 'success'"
               size="small"
-              @click="deleteStudent(row)"
+              @click="toggleStudentStatus(row)"
             >
-              {{ row.status === 'DELETED' ? '彻底删除' : '删除' }}
+              {{ row.status === 'ACTIVE' ? '停用' : '启用' }}
             </el-button>
           </template>
         </el-table-column>
@@ -113,6 +127,7 @@ const loading = ref(false)
 const students = ref([])
 const searchKeyword = ref('')
 const statusFilter = ref('')
+const gradeFilter = ref('')
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const formRef = ref()
@@ -150,11 +165,11 @@ const getGradeLabel = (grade: string) => {
 const getGradeType = (grade: string) => {
   const types: Record<string, string> = {
     'PRESCHOOL': 'warning',
-    'GRADE_1': '',
-    'GRADE_2': '',
-    'GRADE_3': '',
-    'GRADE_4': '',
-    'GRADE_5': '',
+    'GRADE_1': 'info',
+    'GRADE_2': 'info',
+    'GRADE_3': 'info',
+    'GRADE_4': 'info',
+    'GRADE_5': 'info',
     'GRADE_6': 'success',
     'GRADE_7': 'info',
     'GRADE_8': 'info',
@@ -164,7 +179,7 @@ const getGradeType = (grade: string) => {
     'GRADE_12': 'primary',
     'ADULT': 'danger'
   }
-  return types[grade] || ''
+  return types[grade] || 'info'
 }
 
 const rules = {
@@ -173,8 +188,26 @@ const rules = {
 }
 
 const filteredStudents = computed(() => {
-  if (!statusFilter.value) return students.value
-  return students.value.filter((s: any) => s.status === statusFilter.value)
+  let result = students.value
+
+  // 年级筛选
+  if (gradeFilter.value) {
+    result = result.filter((s: any) => s.gradeLevel === gradeFilter.value)
+  }
+
+  // 状态筛选
+  if (statusFilter.value) {
+    result = result.filter((s: any) => s.status === statusFilter.value)
+  }
+
+  // 默认排序：在读在前，然后按创建时间倒序
+  return result.sort((a: any, b: any) => {
+    // 在读状态优先
+    if (a.status === 'ACTIVE' && b.status !== 'ACTIVE') return -1
+    if (a.status !== 'ACTIVE' && b.status === 'ACTIVE') return 1
+    // 然后按创建时间倒序
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  })
 })
 
 const formatDate = (date: string) => {
@@ -184,9 +217,7 @@ const formatDate = (date: string) => {
 const getStatusType = (status: string) => {
   const types: Record<string, string> = {
     'ACTIVE': 'success',
-    'INACTIVE': 'info',
-    'GRADUATED': 'primary',
-    'DELETED': 'danger'
+    'INACTIVE': 'info'
   }
   return types[status] || 'info'
 }
@@ -194,9 +225,7 @@ const getStatusType = (status: string) => {
 const getStatusLabel = (status: string) => {
   const labels: Record<string, string> = {
     'ACTIVE': '在读',
-    'INACTIVE': '停用',
-    'GRADUATED': '已毕业',
-    'DELETED': '已删除'
+    'INACTIVE': '停用'
   }
   return labels[status] || status
 }
@@ -275,23 +304,23 @@ const saveStudent = async () => {
   }
 }
 
-const deleteStudent = async (row: any) => {
-  const isDeleted = row.status === 'DELETED'
-  const confirmText = isDeleted ? '确定要彻底删除此学生吗？此操作不可恢复！' : '确定要删除此学生吗？'
+const toggleStudentStatus = async (row: any) => {
+  const newStatus = row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
+  const actionText = newStatus === 'ACTIVE' ? '启用' : '停用'
 
   try {
-    await ElMessageBox.confirm(confirmText, '提示', {
+    await ElMessageBox.confirm(`确定要${actionText}学生 "${row.name}" 吗？`, '提示', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
-      type: isDeleted ? 'error' : 'warning'
+      type: 'warning'
     })
 
-    await studentApi.delete(row.id)
-    ElMessage.success(isDeleted ? '已彻底删除' : '已标记删除')
+    await studentApi.update(row.id, { ...row, status: newStatus })
+    ElMessage.success(`已${actionText}`)
     fetchStudents()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('删除失败')
+      ElMessage.error('操作失败')
     }
   }
 }

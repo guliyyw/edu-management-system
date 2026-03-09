@@ -12,8 +12,12 @@ import java.util.Optional;
 
 @Repository
 public interface TravelTimeRepository extends JpaRepository<TravelTime, Long> {
-    
-    List<TravelTime> findByTeacherId(Long teacherId);
+
+    @Query("SELECT t FROM TravelTime t LEFT JOIN FETCH t.teacher LEFT JOIN FETCH t.fromCampus LEFT JOIN FETCH t.toCampus")
+    List<TravelTime> findAllWithDetails();
+
+    @Query("SELECT t FROM TravelTime t LEFT JOIN FETCH t.teacher LEFT JOIN FETCH t.fromCampus LEFT JOIN FETCH t.toCampus WHERE t.teacher.id = :teacherId")
+    List<TravelTime> findByTeacherId(@Param("teacherId") Long teacherId);
     
     @Query("SELECT t FROM TravelTime t WHERE t.teacher.id = :teacherId AND t.fromCampus.id = :fromCampusId AND t.toCampus.id = :toCampusId AND t.effectiveDate <= :date ORDER BY t.effectiveDate DESC")
     Optional<TravelTime> findEffectiveTravelTime(@Param("teacherId") Long teacherId, 

@@ -3,6 +3,7 @@ package com.edu.management.controller;
 import com.edu.management.dto.ApiResponse;
 import com.edu.management.dto.CampusDto;
 import com.edu.management.service.CampusService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -19,13 +20,13 @@ public class CampusController {
     
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<CampusDto> create(@RequestBody CampusDto dto) {
+    public ApiResponse<CampusDto> create(@Valid @RequestBody CampusDto dto) {
         return ApiResponse.success("创建成功", campusService.create(dto));
     }
-    
+
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<CampusDto> update(@PathVariable Long id, @RequestBody CampusDto dto) {
+    public ApiResponse<CampusDto> update(@PathVariable Long id, @Valid @RequestBody CampusDto dto) {
         return ApiResponse.success("更新成功", campusService.update(id, dto));
     }
     

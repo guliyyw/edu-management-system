@@ -32,4 +32,8 @@ public interface LessonRepository extends JpaRepository<Lesson, Long> {
     
     @Query("SELECT l FROM Lesson l WHERE l.classEntity.id = :classId AND l.date = :date")
     List<Lesson> findByClassIdAndDate(@Param("classId") Long classId, @Param("date") LocalDate date);
+
+    List<Lesson> findByClassEntityIdAndDate(Long classId, LocalDate date);
+
+    void deleteByClassEntityId(Long classId);
 }

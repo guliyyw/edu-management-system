@@ -76,6 +76,10 @@
             <el-icon><UserFilled /></el-icon>
             <span>老师管理</span>
           </el-menu-item>
+          <el-menu-item index="/travel-manage">
+            <el-icon><Timer /></el-icon>
+            <span>路程管理</span>
+          </el-menu-item>
           <el-menu-item index="/courses">
             <el-icon><Reading /></el-icon>
             <span>课程管理</span>
@@ -84,9 +88,13 @@
             <el-icon><Lock /></el-icon>
             <span>账号管理</span>
           </el-menu-item>
-          <el-menu-item index="/global-reports">
-            <el-icon><DataLine /></el-icon>
-            <span>全局报表</span>
+          <el-menu-item index="/backup">
+            <el-icon><Folder /></el-icon>
+            <span>数据备份</span>
+          </el-menu-item>
+          <el-menu-item index="/debug">
+            <el-icon><Tools /></el-icon>
+            <span>调试工具</span>
           </el-menu-item>
         </template>
       </el-menu>
@@ -118,17 +126,71 @@
         <router-view />
       </el-main>
     </el-container>
+
+    <!-- 个人信息对话框 -->
+    <el-dialog v-model="profileDialogVisible" title="个人信息" width="500px">
+      <el-form :model="profileForm" :rules="profileRules" ref="profileFormRef" label-width="100px">
+        <el-form-item label="用户名">
+          <el-input v-model="profileForm.username" disabled />
+        </el-form-item>
+        <el-form-item label="真实姓名" prop="realName">
+          <el-input v-model="profileForm.realName" placeholder="请输入真实姓名" />
+        </el-form-item>
+        <el-form-item label="电话">
+          <el-input v-model="profileForm.phone" placeholder="请输入电话" />
+        </el-form-item>
+        <el-divider content-position="left">修改密码（可选）</el-divider>
+        <el-form-item label="新密码" prop="newPassword">
+          <el-input v-model="profileForm.newPassword" type="password" placeholder="不修改请留空" />
+        </el-form-item>
+        <el-form-item label="确认密码" prop="confirmPassword">
+          <el-input v-model="profileForm.confirmPassword" type="password" placeholder="再次输入新密码" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="profileDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveProfile">保存</el-button>
+      </template>
+    </el-dialog>
   </el-container>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { userApi } from '@/api/user'
+import Breadcrumb from '@/components/Breadcrumb.vue'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+
+const profileDialogVisible = ref(false)
+const profileFormRef = ref()
+const profileForm = ref({
+  username: '',
+  realName: '',
+  phone: '',
+  password: '',
+  newPassword: '',
+  confirmPassword: ''
+})
+
+const profileRules = {
+  realName: [{ required: true, message: '请输入真实姓名', trigger: 'blur' }],
+  confirmPassword: [{
+    validator: (rule: any, value: string, callback: Function) => {
+      if (profileForm.value.newPassword && value !== profileForm.value.newPassword) {
+        callback(new Error('两次输入的密码不一致'))
+      } else {
+        callback()
+      }
+    },
+    trigger: 'blur'
+  }]
+}
 
 const handleCommand = (command: string) => {
   if (command === 'logout') {
@@ -141,7 +203,43 @@ const handleCommand = (command: string) => {
       ElMessage.success('已退出登录')
     })
   } else if (command === 'profile') {
-    // TODO: 打开个人信息对话框
+    // 打开个人信息对话框
+    profileForm.value = {
+      username: authStore.user?.username || '',
+      realName: authStore.user?.realName || '',
+      phone: authStore.user?.phone || '',
+      password: '',
+      newPassword: '',
+      confirmPassword: ''
+    }
+    profileDialogVisible.value = true
+  }
+}
+
+const saveProfile = async () => {
+  const valid = await profileFormRef.value?.validate().catch(() => false)
+  if (!valid) return
+
+  try {
+    const data: any = {
+      realName: profileForm.value.realName,
+      phone: profileForm.value.phone
+    }
+    // 如果填写了新密码，添加密码字段
+    if (profileForm.value.newPassword) {
+      data.password = profileForm.value.newPassword
+    }
+
+    // 调用更新用户API
+    if (authStore.user?.id) {
+      await userApi.update(authStore.user.id, data)
+      ElMessage.success('个人信息更新成功')
+      // 更新本地存储的用户信息
+      authStore.initAuth()
+      profileDialogVisible.value = false
+    }
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || '更新失败')
   }
 }
 </script>

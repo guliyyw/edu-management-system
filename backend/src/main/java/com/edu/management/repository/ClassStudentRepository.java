@@ -20,4 +20,6 @@ public interface ClassStudentRepository extends JpaRepository<ClassStudent, Long
     List<ClassStudent> findTrialClassesByStudentId(@Param("studentId") Long studentId);
     
     boolean existsByClassEntityIdAndStudentId(Long classId, Long studentId);
+
+    void deleteByClassEntityId(Long classId);
 }

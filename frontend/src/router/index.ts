@@ -14,7 +14,7 @@ const router = createRouter({
       path: '/',
       name: 'Layout',
       component: () => import('@/layouts/MainLayout.vue'),
-      redirect: '/dashboard',
+      redirect: '/login',
       children: [
         // 仪表盘
         {
@@ -93,6 +93,12 @@ const router = createRouter({
           meta: { title: '老师管理', icon: 'UserFilled', roles: ['ADMIN'] }
         },
         {
+          path: 'travel-manage',
+          name: 'TravelManage',
+          component: () => import('@/views/admin/TravelManageView.vue'),
+          meta: { title: '路程管理', icon: 'Timer', roles: ['ADMIN'] }
+        },
+        {
           path: 'courses',
           name: 'Courses',
           component: () => import('@/views/admin/CoursesView.vue'),
@@ -105,10 +111,22 @@ const router = createRouter({
           meta: { title: '账号管理', icon: 'Lock', roles: ['ADMIN'] }
         },
         {
-          path: 'global-reports',
-          name: 'GlobalReports',
-          component: () => import('@/views/admin/GlobalReportsView.vue'),
-          meta: { title: '全局报表', icon: 'DataLine', roles: ['ADMIN'] }
+          path: 'backup',
+          name: 'Backup',
+          component: () => import('@/views/admin/BackupView.vue'),
+          meta: { title: '数据备份', icon: 'Folder', roles: ['ADMIN'] }
+        },
+        {
+          path: 'debug',
+          name: 'Debug',
+          component: () => import('@/views/admin/DebugView.vue'),
+          meta: { title: '调试工具', icon: 'Tools', roles: ['ADMIN'] }
+        },
+        {
+          path: 'announcements',
+          name: 'Announcements',
+          component: () => import('@/views/admin/AnnouncementsView.vue'),
+          meta: { title: '公告管理', icon: 'Bell', roles: ['ADMIN', 'STAFF'] }
         }
       ]
     },
@@ -121,25 +139,33 @@ const router = createRouter({
 
 // 路由守卫
 router.beforeEach((to, from, next) => {
+  // 延迟获取 store，确保 Pinia 已初始化
   const authStore = useAuthStore()
-  
+
   if (to.meta.public) {
     next()
     return
   }
-  
-  if (!authStore.token) {
+
+  // 检查是否已登录（从 localStorage 和 store 双重检查）
+  const token = authStore.token || localStorage.getItem('token')
+  if (!token) {
     next('/login')
     return
   }
-  
+
+  // 如果 store 中没有 token 但 localStorage 中有，重新初始化
+  if (!authStore.token && token) {
+    authStore.initAuth()
+  }
+
   // 检查角色权限
   const requiredRoles = to.meta.roles as string[] | undefined
   if (requiredRoles && !requiredRoles.includes(authStore.userRole || '')) {
     next('/dashboard')
     return
   }
-  
+
   next()
 })
 

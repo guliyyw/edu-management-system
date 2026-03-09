@@ -8,7 +8,7 @@
         </div>
       </template>
       
-      <el-table :data="teachers" border v-loading="loading">
+      <el-table :data="teachers" border v-loading="loading" height="calc(100vh - 220px)" style="width: 100%">
         <el-table-column prop="name" label="老师姓名" width="120" />
         <el-table-column prop="phone" label="电话" width="150" />
         <el-table-column label="所属校区">
@@ -137,14 +137,14 @@ const editTeacher = (row: any) => {
 const saveTeacher = async () => {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
-  
+
   try {
     const data = {
       name: form.value.name,
       phone: form.value.phone,
-      campuses: form.value.campusIds.map(id => ({ id }))
+      campusIds: form.value.campusIds
     }
-    
+
     if (isEdit.value && form.value.id) {
       await teacherApi.update(form.value.id, data)
       ElMessage.success('更新成功')
@@ -152,11 +152,11 @@ const saveTeacher = async () => {
       await teacherApi.create(data)
       ElMessage.success('添加成功')
     }
-    
+
     dialogVisible.value = false
     fetchTeachers()
-  } catch (error) {
-    ElMessage.error(isEdit.value ? '更新失败' : '添加失败')
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || (isEdit.value ? '更新失败' : '添加失败'))
   }
 }
 

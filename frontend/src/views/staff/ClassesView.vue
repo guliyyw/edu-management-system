@@ -4,11 +4,43 @@
       <template #header>
         <div class="card-header">
           <span>班级管理</span>
-          <el-button type="primary" size="small" @click="showAddDialog">添加班级</el-button>
+          <div class="header-actions">
+            <el-select
+              v-model="filterCampus"
+              placeholder="筛选校区"
+              size="small"
+              style="width: 150px; margin-right: 10px;"
+              @change="applyFilter"
+              clearable
+            >
+              <el-option
+                v-for="campus in campuses"
+                :key="campus.id"
+                :label="campus.name"
+                :value="campus.id"
+              />
+            </el-select>
+            <el-select
+              v-model="filterTeacher"
+              placeholder="筛选老师"
+              size="small"
+              style="width: 150px; margin-right: 10px;"
+              @change="applyFilter"
+              clearable
+            >
+              <el-option
+                v-for="teacher in teachers"
+                :key="teacher.id"
+                :label="teacher.name"
+                :value="teacher.id"
+              />
+            </el-select>
+            <el-button type="primary" size="small" @click="showAddDialog">添加班级</el-button>
+          </div>
         </div>
       </template>
 
-      <el-table :data="classes" border v-loading="loading" row-key="id">
+      <el-table :data="filteredClasses" border v-loading="loading" row-key="id" height="calc(100vh - 240px)" style="width: 100%">
         <el-table-column type="expand">
           <template #default="{ row }">
             <div class="student-list">
@@ -44,12 +76,16 @@
             {{ getGradeLabel(row.gradeLevel) }}
           </template>
         </el-table-column>
-        <el-table-column prop="course.name" label="课程" />
+        <el-table-column prop="course.type" label="课程类型" width="120">
+          <template #default="{ row }">
+            {{ getCourseTypeLabel(row.course?.type) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="teacher.name" label="老师" />
         <el-table-column prop="campus.name" label="校区" />
-        <el-table-column prop="unitPrice" label="班级单价" width="100">
+        <el-table-column prop="teacherFee" label="老师课时费(元/人)" width="140">
           <template #default="{ row }">
-            {{ row.unitPrice || row.course?.unitPrice }}
+            {{ row.teacherFee || '-' }}
           </template>
         </el-table-column>
         <el-table-column label="默认时间" width="150">
@@ -71,10 +107,11 @@
             {{ row.students?.length || 0 }} 人
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200">
+        <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="manageStudents(row)">管理学生</el-button>
             <el-button type="warning" size="small" @click="editClass(row)">编辑</el-button>
+            <el-button type="danger" size="small" @click="deleteClass(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -84,38 +121,43 @@
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑班级' : '添加班级'" width="600px">
       <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
         <el-form-item label="班级名称" prop="className">
-          <el-input v-model="form.className" placeholder="如：六年级英语A班" />
+          <el-input v-model="form.className" placeholder="如：六年级英语A班">
+            <template #append>
+              <el-button @click="generateClassName">自动生成</el-button>
+            </template>
+          </el-input>
+          <div class="form-tip">根据年级、课程、老师、校区和星期自动生成</div>
         </el-form-item>
         <el-form-item label="年级" prop="gradeLevel">
-          <el-select v-model="form.gradeLevel" placeholder="选择年级" style="width: 100%;">
+          <el-select v-model="form.gradeLevel" placeholder="选择年级" style="width: 100%;" @change="autoGenerateClassName">
             <el-option v-for="grade in gradeOptions" :key="grade.value" :label="grade.label" :value="grade.value" />
           </el-select>
         </el-form-item>
-        <el-form-item label="课程" prop="courseId">
-          <el-select v-model="form.courseId" placeholder="选择课程" style="width: 100%;">
-            <el-option v-for="course in courses" :key="course.id" :label="course.name" :value="course.id" />
+        <el-form-item label="课程类型" prop="courseId">
+          <el-select v-model="form.courseId" placeholder="选择课程类型" style="width: 100%;" @change="autoGenerateClassName">
+            <el-option v-for="course in courses" :key="course.id" :label="getCourseTypeLabel(course.type)" :value="course.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="老师" prop="teacherId">
-          <el-select v-model="form.teacherId" placeholder="选择老师" style="width: 100%;">
+          <el-select v-model="form.teacherId" placeholder="选择老师" style="width: 100%;" @change="autoGenerateClassName">
             <el-option v-for="teacher in teachers" :key="teacher.id" :label="teacher.name" :value="teacher.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="校区" prop="campusId">
-          <el-select v-model="form.campusId" placeholder="选择校区" style="width: 100%;">
+          <el-select v-model="form.campusId" placeholder="选择校区" style="width: 100%;" @change="autoGenerateClassName">
             <el-option v-for="campus in campuses" :key="campus.id" :label="campus.name" :value="campus.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="教室">
           <el-input v-model="form.classroom" placeholder="请输入教室" />
         </el-form-item>
-        <el-form-item label="班级单价">
-          <el-input-number v-model="form.unitPrice" :min="0" :precision="2" placeholder="留空使用课程默认价格" style="width: 100%;" />
-          <div class="form-tip">不填则使用课程默认单价：{{ getCourseDefaultPrice() }}</div>
+        <el-form-item label="老师课时费(元/人)">
+          <el-input-number v-model="form.teacherFee" :min="0" :precision="2" placeholder="请输入老师课时费" style="width: 100%;" />
+          <div class="form-tip">按到课学生人数计算，每人每节课的课时费</div>
         </el-form-item>
         <el-divider>默认上课时间（可选）</el-divider>
         <el-form-item label="星期">
-          <el-select v-model="form.defaultDayOfWeek" placeholder="选择星期（可选）" style="width: 100%;" clearable>
+          <el-select v-model="form.defaultDayOfWeek" placeholder="选择星期（可选）" style="width: 100%;" clearable @change="autoGenerateClassName">
             <el-option label="周一" :value="1" />
             <el-option label="周二" :value="2" />
             <el-option label="周三" :value="3" />
@@ -165,15 +207,34 @@
           <el-tab-pane label="添加已有学生" name="existing">
             <div class="student-table-section">
               <div class="table-header">
-                <span>选择要添加的学生（同年级学生优先显示）</span>
+                <el-select
+                  v-model="studentGradeFilter"
+                  placeholder="选择年级筛选"
+                  style="width: 150px; margin-right: 10px;"
+                  size="small"
+                  clearable
+                >
+                  <el-option label="全部年级" value="" />
+                  <el-option
+                    v-for="grade in gradeOptions"
+                    :key="grade.value"
+                    :label="grade.label"
+                    :value="grade.value"
+                  />
+                </el-select>
+                <span style="color: #909399; font-size: 14px;">
+                  共 {{ filteredAvailableStudents.length }} 名学生
+                  <span v-if="studentGradeFilter" style="color: #409EFF;">（已筛选）</span>
+                </span>
                 <el-checkbox v-model="isTrial" style="margin-left: 20px;">试课</el-checkbox>
-                <el-button type="primary" @click="addStudents" :disabled="selectedStudents.length === 0" style="margin-left: 20px;">
+                <el-button type="primary" @click="addStudents" :disabled="selectedStudents.length === 0" style="margin-left: 20px;" size="small">
                   批量添加 ({{ selectedStudents.length }}人)
                 </el-button>
               </div>
               <el-table
                 :data="sortedAvailableStudents"
                 border
+                height="400"
                 @selection-change="handleSelectionChange"
                 ref="studentTableRef"
               >
@@ -269,6 +330,8 @@ const courses = ref([])
 const teachers = ref([])
 const campuses = ref([])
 const allStudents = ref([])
+const filterCampus = ref<number | null>(null)
+const filterTeacher = ref<number | null>(null)
 const dialogVisible = ref(false)
 const studentDialogVisible = ref(false)
 const isEdit = ref(false)
@@ -281,6 +344,7 @@ const currentClassStudents = ref<any[]>([])
 const selectedStudents = ref<number[]>([])
 const isTrial = ref(false)
 const activeTab = ref('existing')
+const studentGradeFilter = ref('')
 
 const gradeOptions = [
   { value: 'PRESCHOOL', label: '学前' },
@@ -308,6 +372,7 @@ const form = ref({
   campusId: null as number | null,
   classroom: '',
   unitPrice: null as number | null,
+  teacherFee: null as number | null,
   defaultDayOfWeek: null as number | null,
   defaultStartTime: null as Date | null,
   defaultEndTime: null as Date | null
@@ -339,10 +404,18 @@ const availableStudents = computed(() => {
   return allStudents.value.filter((s: any) => !studentIds.includes(s.id) && s.status !== 'DELETED')
 })
 
+// 根据年级筛选学生
+const filteredAvailableStudents = computed(() => {
+  if (!studentGradeFilter.value) {
+    return availableStudents.value
+  }
+  return availableStudents.value.filter((s: any) => s.gradeLevel === studentGradeFilter.value)
+})
+
 // 按年级排序，同年级在前
 const sortedAvailableStudents = computed(() => {
   const classGrade = currentClassInfo.value?.gradeLevel
-  return [...availableStudents.value].sort((a: any, b: any) => {
+  return [...filteredAvailableStudents.value].sort((a: any, b: any) => {
     const aMatch = a.gradeLevel === classGrade ? 0 : 1
     const bMatch = b.gradeLevel === classGrade ? 0 : 1
     if (aMatch !== bMatch) return aMatch - bMatch
@@ -395,6 +468,27 @@ const getStatusLabel = (status: string) => {
   return labels[status] || status
 }
 
+// 课程类型标签映射
+const courseTypeLabels: Record<string, string> = {
+  'CHINESE': '语文',
+  'MATH': '数学',
+  'ENGLISH': '英语',
+  'PHYSICS': '物理',
+  'CHEMISTRY': '化学',
+  'BIOLOGY': '生物',
+  'HISTORY': '历史',
+  'GEOGRAPHY': '地理',
+  'POLITICS': '政治',
+  'ART': '美术',
+  'MUSIC': '音乐',
+  'SPORTS': '体育',
+  'OTHER': '其他'
+}
+
+const getCourseTypeLabel = (type: string) => {
+  return courseTypeLabels[type] || type
+}
+
 // 开始时间变化时，自动设置结束时间为开始时间+2小时
 const handleStartTimeChange = (val: Date | null) => {
   if (val && !form.value.defaultEndTime) {
@@ -443,6 +537,7 @@ const showAddDialog = () => {
     campusId: null,
     classroom: '',
     unitPrice: null,
+    teacherFee: null,
     defaultDayOfWeek: null,
     defaultStartTime: null,
     defaultEndTime: null
@@ -461,6 +556,7 @@ const editClass = (row: any) => {
     campusId: row.campus?.id,
     classroom: row.classroom,
     unitPrice: row.unitPrice,
+    teacherFee: row.teacherFee,
     defaultDayOfWeek: row.defaultDayOfWeek,
     defaultStartTime: row.defaultStartTime ? dayjs(`2024-01-01 ${row.defaultStartTime}`).toDate() : null,
     defaultEndTime: row.defaultEndTime ? dayjs(`2024-01-01 ${row.defaultEndTime}`).toDate() : null
@@ -481,6 +577,7 @@ const saveClass = async () => {
       gradeLevel: form.value.gradeLevel,
       classroom: form.value.classroom,
       unitPrice: form.value.unitPrice,
+      teacherFee: form.value.teacherFee,
       defaultDayOfWeek: form.value.defaultDayOfWeek,
       defaultStartTime: form.value.defaultStartTime ? dayjs(form.value.defaultStartTime).format('HH:mm') : null,
       defaultEndTime: form.value.defaultEndTime ? dayjs(form.value.defaultEndTime).format('HH:mm') : null
@@ -508,6 +605,8 @@ const manageStudents = async (row: any) => {
   selectedStudents.value = []
   isTrial.value = false
   activeTab.value = 'existing'
+  // 默认筛选为班级同年级
+  studentGradeFilter.value = row.gradeLevel
   newStudentForm.value = { name: '', gradeLevel: row.gradeLevel, parentName: '', parentPhone: '' }
   newStudentIsTrial.value = false
   studentDialogVisible.value = true
@@ -520,22 +619,29 @@ const handleSelectionChange = (selection: any[]) => {
 const addStudents = async () => {
   if (!currentClassId.value || selectedStudents.value.length === 0) return
 
+  console.log('[添加学生] 开始添加学生，班级ID:', currentClassId.value, '学生IDs:', selectedStudents.value)
+
   try {
     // 获取当前已添加的学生ID列表，用于过滤
     const existingStudentIds = currentClassStudents.value.map((s: any) => s.student.id)
+    console.log('[添加学生] 当前已存在的学生IDs:', existingStudentIds)
     let addedCount = 0
     let skippedCount = 0
 
     for (const studentId of selectedStudents.value) {
       // 检查学生是否已经在班级中
       if (existingStudentIds.includes(studentId)) {
+        console.log('[添加学生] 学生已在班级中，跳过:', studentId)
         skippedCount++
         continue
       }
       try {
-        await classApi.addStudent(currentClassId.value, studentId, isTrial.value)
+        console.log('[添加学生] 调用API添加学生:', studentId)
+        const addRes = await classApi.addStudent(currentClassId.value, studentId, isTrial.value)
+        console.log('[添加学生] API返回:', addRes)
         addedCount++
       } catch (err: any) {
+        console.error('[添加学生] 添加失败:', err)
         if (err.response?.data?.message?.includes('已在班级中')) {
           skippedCount++
         } else {
@@ -553,15 +659,28 @@ const addStudents = async () => {
 
     selectedStudents.value = []
     isTrial.value = false
+
     // 先刷新班级列表
+    console.log('[添加学生] 开始刷新班级列表')
     await fetchClasses()
+    console.log('[添加学生] 班级列表刷新完成，classes:', classes.value)
+
     // 再刷新当前班级学生列表
+    console.log('[添加学生] 开始获取班级详情，ID:', currentClassId.value)
     const res = await classApi.getById(currentClassId.value)
+    console.log('[添加学生] 班级详情API返回:', res)
+    console.log('[添加学生] res.data:', res.data)
+    console.log('[添加学生] res.data?.students:', res.data?.students)
+
     currentClassStudents.value = res.data?.students || []
     currentClassInfo.value = res.data
+    console.log('[添加学生] 更新后的currentClassStudents:', currentClassStudents.value)
+
     // 刷新可选学生列表
     await fetchOptions()
+    console.log('[添加学生] 可选学生列表刷新完成')
   } catch (error: any) {
+    console.error('[添加学生] 整体流程出错:', error)
     ElMessage.error(error.response?.data?.message || '添加失败')
   }
 }
@@ -660,6 +779,102 @@ const convertTrialInline = async (row: any) => {
     currentClassStudents.value = res.data?.students || []
   } catch (error) {
     ElMessage.error('转正失败')
+  }
+}
+
+const deleteClass = async (row: any) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要彻底删除班级 "${row.className}" 吗？\n警告：此操作将永久删除该班级及其所有课节、签到记录和学生关联数据，不可恢复！`,
+      '危险操作',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'error'
+      }
+    )
+
+    await classApi.delete(row.id)
+    ElMessage.success('班级已彻底删除')
+    fetchClasses()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败')
+    }
+  }
+}
+
+// 筛选后的班级列表
+const filteredClasses = computed(() => {
+  let result = classes.value
+
+  // 按校区筛选
+  if (filterCampus.value) {
+    result = result.filter((c: any) => c.campus?.id === filterCampus.value)
+  }
+
+  // 按老师筛选
+  if (filterTeacher.value) {
+    result = result.filter((c: any) => c.teacher?.id === filterTeacher.value)
+  }
+
+  return result
+})
+
+// 应用筛选
+const applyFilter = () => {
+  // 筛选通过计算属性自动应用
+}
+
+// 生成班级名称
+const generateClassName = () => {
+  const parts: string[] = []
+
+  // 年级
+  if (form.value.gradeLevel) {
+    const gradeLabel = getGradeLabel(form.value.gradeLevel)
+    parts.push(gradeLabel)
+  }
+
+  // 课程类型
+  if (form.value.courseId) {
+    const course = courses.value.find((c: any) => c.id === form.value.courseId)
+    if (course) {
+      parts.push(getCourseTypeLabel(course.type))
+    }
+  }
+
+  // 老师
+  if (form.value.teacherId) {
+    const teacher = teachers.value.find((t: any) => t.id === form.value.teacherId)
+    if (teacher) {
+      parts.push(teacher.name)
+    }
+  }
+
+  // 校区
+  if (form.value.campusId) {
+    const campus = campuses.value.find((c: any) => c.id === form.value.campusId)
+    if (campus) {
+      parts.push(campus.name)
+    }
+  }
+
+  // 星期
+  if (form.value.defaultDayOfWeek) {
+    const weekDays = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日']
+    parts.push(weekDays[form.value.defaultDayOfWeek])
+  }
+
+  if (parts.length > 0) {
+    form.value.className = parts.join('-')
+  }
+}
+
+// 自动生成年級名称（仅在添加模式下且名称为空时）
+const autoGenerateClassName = () => {
+  if (!isEdit.value && !form.value.className) {
+    generateClassName()
   }
 }
 

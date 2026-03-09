@@ -46,12 +46,7 @@
         </el-form-item>
       </el-form>
       
-      <div class="login-tips">
-        <p>测试账号：</p>
-        <p>管理员：admin / admin123</p>
-        <p>教务：staff1 / staff123</p>
-        <p>老师：teacher1 / teacher123</p>
-      </div>
+
     </div>
   </div>
 </template>

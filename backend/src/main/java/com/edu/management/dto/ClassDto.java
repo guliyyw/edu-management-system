@@ -22,6 +22,7 @@ public class ClassDto {
     private String className;
     private GradeLevel gradeLevel;
     private BigDecimal unitPrice;
+    private BigDecimal teacherFee;
     private Integer defaultDayOfWeek;
     private LocalTime defaultStartTime;
     private LocalTime defaultEndTime;

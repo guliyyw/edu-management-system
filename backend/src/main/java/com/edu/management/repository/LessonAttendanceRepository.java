@@ -40,4 +40,6 @@ public interface LessonAttendanceRepository extends JpaRepository<LessonAttendan
                                                   @Param("teacherId") Long teacherId, 
                                                   @Param("startDate") LocalDate startDate, 
                                                   @Param("endDate") LocalDate endDate);
+
+    void deleteByLessonId(Long lessonId);
 }

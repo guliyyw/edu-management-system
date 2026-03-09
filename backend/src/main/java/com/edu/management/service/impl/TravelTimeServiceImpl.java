@@ -75,7 +75,15 @@ public class TravelTimeServiceImpl implements TravelTimeService {
                 .orElseThrow(() -> new RuntimeException("路程配置不存在"));
         return toDto(travelTime);
     }
-    
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TravelTimeDto> getAll() {
+        return travelTimeRepository.findAllWithDetails().stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
+
     @Override
     @Transactional(readOnly = true)
     public List<TravelTimeDto> getByTeacherId(Long teacherId) {

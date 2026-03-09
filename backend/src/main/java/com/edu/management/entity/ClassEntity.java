@@ -3,15 +3,18 @@ package com.edu.management.entity;
 import com.edu.management.enums.ClassStatus;
 import com.edu.management.enums.GradeLevel;
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
-@Data
+@Getter
+@Setter
+@ToString(exclude = "students")
 @Entity
 @Table(name = "classes")
 public class ClassEntity {
@@ -48,6 +51,10 @@ public class ClassEntity {
     @Column(precision = 10, scale = 2)
     private java.math.BigDecimal unitPrice;
 
+    // 老师课时费（该班级老师每节课的课时费）
+    @Column(precision = 10, scale = 2)
+    private java.math.BigDecimal teacherFee;
+
     // 默认上课时间（用于排课参考，实际课节时间可灵活调整）
     // 上课星期几 (1-7)，null表示不固定
     @Column
@@ -73,4 +80,17 @@ public class ClassEntity {
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ClassEntity that = (ClassEntity) o;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
 }

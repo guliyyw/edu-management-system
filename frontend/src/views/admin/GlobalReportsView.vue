@@ -25,7 +25,7 @@
       <el-divider />
       
       <h4>各校区课时统计</h4>
-      <el-table :data="campusStats" border style="margin-top: 20px;">
+      <el-table :data="campusStats" border height="250" style="width: 100%; margin-top: 20px;">
         <el-table-column prop="campusName" label="校区" />
         <el-table-column prop="lessonCount" label="课时数" />
         <el-table-column prop="studentCount" label="学生人次" />
@@ -35,7 +35,7 @@
       <el-divider />
       
       <h4>各老师课时统计</h4>
-      <el-table :data="teacherStats" border style="margin-top: 20px;">
+      <el-table :data="teacherStats" border height="250" style="width: 100%; margin-top: 20px;">
         <el-table-column prop="teacherName" label="老师" />
         <el-table-column prop="lessonCount" label="课时数" />
         <el-table-column prop="studentCount" label="学生人次" />

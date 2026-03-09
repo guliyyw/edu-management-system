@@ -2,13 +2,16 @@ package com.edu.management.entity;
 
 import com.edu.management.enums.AttendanceStatus;
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 
-@Data
+@Getter
+@Setter
+@ToString(exclude = {"lesson", "student"})
 @Entity
 @Table(name = "lesson_attendances")
 public class LessonAttendance {
@@ -48,4 +51,17 @@ public class LessonAttendance {
     
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        LessonAttendance that = (LessonAttendance) o;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
 }

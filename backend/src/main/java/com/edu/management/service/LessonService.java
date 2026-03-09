@@ -1,5 +1,7 @@
 package com.edu.management.service;
 
+import com.edu.management.dto.BatchScheduleRecordDto;
+import com.edu.management.dto.BatchScheduleResultDto;
 import com.edu.management.dto.LessonDto;
 import com.edu.management.enums.AttendanceStatus;
 
@@ -29,6 +31,12 @@ public interface LessonService {
     
     // 批量生成课节
     List<LessonDto> generateLessons(Long classId, LocalDate startDate, LocalDate endDate);
+    
+    // 批量生成课节（带失败原因记录）
+    BatchScheduleResultDto generateLessonsWithResult(Long classId, LocalDate startDate, LocalDate endDate);
+    
+    // 获取批量排课失败记录
+    List<BatchScheduleRecordDto> getBatchScheduleFailRecords(Long classId, LocalDate startDate, LocalDate endDate);
     
     // 签到
     void markAttendance(Long lessonId, Long studentId, AttendanceStatus status, String remark);

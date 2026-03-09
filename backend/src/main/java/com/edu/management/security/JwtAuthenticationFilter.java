@@ -25,30 +25,40 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenProvider jwtTokenProvider;
     
     @Override
-    protected void doFilterInternal(HttpServletRequest request, 
-                                    HttpServletResponse response, 
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
+        String requestPath = request.getRequestURI();
         try {
             String jwt = getJwtFromRequest(request);
-            
+
             if (StringUtils.hasText(jwt) && jwtTokenProvider.validateToken(jwt)) {
                 String username = jwtTokenProvider.getUsernameFromToken(jwt);
                 String role = jwtTokenProvider.getRoleFromToken(jwt);
-                
-                UsernamePasswordAuthenticationToken authentication = 
+
+                log.info("[JWT过滤器] 请求路径: {}，用户: {}，角色: {}", requestPath, username, role);
+
+                UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
                                 username,
                                 null,
                                 Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role))
                         );
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                
+
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+                log.info("[JWT过滤器] 认证成功，权限: ROLE_{}", role);
+            } else {
+                if (StringUtils.hasText(jwt)) {
+                    log.warn("[JWT过滤器] Token无效或已过期，路径: {}", requestPath);
+                } else {
+                    log.warn("[JWT过滤器] 请求中没有Token，路径: {}", requestPath);
+                }
             }
         } catch (Exception e) {
-            log.error("Cannot set user authentication: {}", e.getMessage());
+            log.error("[JWT过滤器] 认证失败，路径: {}，错误: {}", requestPath, e.getMessage());
         }
-        
+
         filterChain.doFilter(request, response);
     }
     

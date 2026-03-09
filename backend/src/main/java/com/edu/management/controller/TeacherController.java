@@ -2,7 +2,9 @@ package com.edu.management.controller;
 
 import com.edu.management.dto.ApiResponse;
 import com.edu.management.dto.TeacherDto;
+import com.edu.management.dto.TeacherRequest;
 import com.edu.management.service.TeacherService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -14,19 +16,19 @@ import java.util.List;
 @RequiredArgsConstructor
 @CrossOrigin(origins = "*")
 public class TeacherController {
-    
+
     private final TeacherService teacherService;
-    
+
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<TeacherDto> create(@RequestBody TeacherDto dto) {
-        return ApiResponse.success("创建成功", teacherService.create(dto));
+    public ApiResponse<TeacherDto> create(@Valid @RequestBody TeacherRequest request) {
+        return ApiResponse.success("创建成功", teacherService.create(request));
     }
-    
+
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<TeacherDto> update(@PathVariable Long id, @RequestBody TeacherDto dto) {
-        return ApiResponse.success("更新成功", teacherService.update(id, dto));
+    public ApiResponse<TeacherDto> update(@PathVariable Long id, @Valid @RequestBody TeacherRequest request) {
+        return ApiResponse.success("更新成功", teacherService.update(id, request));
     }
     
     @DeleteMapping("/{id}")

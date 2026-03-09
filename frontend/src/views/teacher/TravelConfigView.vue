@@ -17,7 +17,7 @@
         style="margin-bottom: 20px;"
       />
       
-      <el-table :data="travelTimes" border v-loading="loading">
+      <el-table :data="travelTimes" border v-loading="loading" height="calc(100vh - 280px)" style="width: 100%">
         <el-table-column prop="fromCampus.name" label="起点校区" />
         <el-table-column prop="toCampus.name" label="终点校区" />
         <el-table-column prop="travelMinutes" label="路程时间(分钟)" width="150">

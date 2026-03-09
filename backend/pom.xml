@@ -133,6 +133,8 @@
                             <artifactId>lombok</artifactId>
                         </exclude>
                     </excludes>
+                    <!-- 设置 JVM 参数以支持 UTF-8 控制台输出 -->
+                    <jvmArguments>-Dfile.encoding=UTF-8 -Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8 -Dconsole.encoding=UTF-8</jvmArguments>
                 </configuration>
             </plugin>
             

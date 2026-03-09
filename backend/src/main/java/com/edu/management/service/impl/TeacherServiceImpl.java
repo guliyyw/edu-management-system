@@ -2,6 +2,7 @@ package com.edu.management.service.impl;
 
 import com.edu.management.dto.CampusDto;
 import com.edu.management.dto.TeacherDto;
+import com.edu.management.dto.TeacherRequest;
 import com.edu.management.entity.Campus;
 import com.edu.management.entity.Teacher;
 import com.edu.management.enums.TeacherStatus;
@@ -20,56 +21,53 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class TeacherServiceImpl implements TeacherService {
-    
+
     private final TeacherRepository teacherRepository;
     private final CampusRepository campusRepository;
-    
+
     @Override
     @Transactional
-    public TeacherDto create(TeacherDto dto) {
+    public TeacherDto create(TeacherRequest request) {
         Teacher teacher = new Teacher();
-        teacher.setName(dto.getName());
-        teacher.setPhone(dto.getPhone());
+        teacher.setName(request.getName());
+        teacher.setPhone(request.getPhone());
         teacher.setStatus(TeacherStatus.ACTIVE);
-        
+
         // 设置所属校区
-        if (dto.getCampuses() != null && !dto.getCampuses().isEmpty()) {
+        if (request.getCampusIds() != null && !request.getCampusIds().isEmpty()) {
             Set<Campus> campuses = new HashSet<>();
-            for (CampusDto campusDto : dto.getCampuses()) {
-                Campus campus = campusRepository.findById(campusDto.getId())
+            for (Long campusId : request.getCampusIds()) {
+                Campus campus = campusRepository.findById(campusId)
                         .orElseThrow(() -> new RuntimeException("校区不存在"));
                 campuses.add(campus);
             }
             teacher.setCampuses(campuses);
         }
-        
+
         teacher = teacherRepository.save(teacher);
         return toDto(teacher);
     }
-    
+
     @Override
     @Transactional
-    public TeacherDto update(Long id, TeacherDto dto) {
+    public TeacherDto update(Long id, TeacherRequest request) {
         Teacher teacher = teacherRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("老师不存在"));
-        
-        teacher.setName(dto.getName());
-        teacher.setPhone(dto.getPhone());
-        if (dto.getStatus() != null) {
-            teacher.setStatus(dto.getStatus());
-        }
-        
+
+        teacher.setName(request.getName());
+        teacher.setPhone(request.getPhone());
+
         // 更新所属校区
-        if (dto.getCampuses() != null) {
+        if (request.getCampusIds() != null) {
             Set<Campus> campuses = new HashSet<>();
-            for (CampusDto campusDto : dto.getCampuses()) {
-                Campus campus = campusRepository.findById(campusDto.getId())
+            for (Long campusId : request.getCampusIds()) {
+                Campus campus = campusRepository.findById(campusId)
                         .orElseThrow(() -> new RuntimeException("校区不存在"));
                 campuses.add(campus);
             }
             teacher.setCampuses(campuses);
         }
-        
+
         teacher = teacherRepository.save(teacher);
         return toDto(teacher);
     }

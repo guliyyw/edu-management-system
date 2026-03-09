@@ -11,9 +11,10 @@ export interface TravelTime {
 }
 
 export const travelTimeApi = {
+  getAll: () => api.get('/travel-times'),
   getById: (id: number) => api.get(`/travel-times/${id}`),
   getByTeacher: (teacherId: number) => api.get(`/travel-times/teacher/${teacherId}`),
-  getEffective: (teacherId: number, fromCampusId: number, toCampusId: number, date: string) => 
+  getEffective: (teacherId: number, fromCampusId: number, toCampusId: number, date: string) =>
     api.get(`/travel-times/teacher/${teacherId}/effective?fromCampusId=${fromCampusId}&toCampusId=${toCampusId}&date=${date}`),
   create: (data: Partial<TravelTime>) => api.post('/travel-times', data),
   update: (id: number, data: Partial<TravelTime>) => api.put(`/travel-times/${id}`, data),

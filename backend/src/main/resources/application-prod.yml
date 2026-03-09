@@ -1,5 +1,6 @@
 server:
   port: 8080
+  address: 0.0.0.0
 
 spring:
   application:
@@ -22,8 +23,3 @@ spring:
 jwt:
   secret: ${JWT_SECRET:edu-management-system-secret-key-2024-change-in-production}
   expiration: 86400000
-
-logging:
-  level:
-    com.edu.management: INFO
-    org.springframework.security: WARN

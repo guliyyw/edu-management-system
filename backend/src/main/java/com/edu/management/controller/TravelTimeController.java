@@ -44,6 +44,12 @@ public class TravelTimeController {
         return ApiResponse.success(travelTimeService.getById(id));
     }
     
+    @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    public ApiResponse<List<TravelTimeDto>> getAll() {
+        return ApiResponse.success(travelTimeService.getAll());
+    }
+
     @GetMapping("/teacher/{teacherId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'STAFF', 'TEACHER')")
     public ApiResponse<List<TravelTimeDto>> getByTeacherId(@PathVariable Long teacherId) {

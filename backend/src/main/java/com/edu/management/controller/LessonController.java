@@ -1,6 +1,8 @@
 package com.edu.management.controller;
 
 import com.edu.management.dto.ApiResponse;
+import com.edu.management.dto.BatchScheduleRecordDto;
+import com.edu.management.dto.BatchScheduleResultDto;
 import com.edu.management.dto.LessonDto;
 import com.edu.management.enums.AttendanceStatus;
 import com.edu.management.service.LessonService;
@@ -92,6 +94,24 @@ public class LessonController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         return ApiResponse.success("生成成功", lessonService.generateLessons(classId, startDate, endDate));
     }
+
+    @PostMapping("/generate-with-result")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    public ApiResponse<BatchScheduleResultDto> generateLessonsWithResult(
+            @RequestParam Long classId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return ApiResponse.success("批量排课完成", lessonService.generateLessonsWithResult(classId, startDate, endDate));
+    }
+
+    @GetMapping("/batch-schedule-fail-records/{classId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    public ApiResponse<List<BatchScheduleRecordDto>> getBatchScheduleFailRecords(
+            @PathVariable Long classId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return ApiResponse.success(lessonService.getBatchScheduleFailRecords(classId, startDate, endDate));
+    }
     
     @PostMapping("/{lessonId}/attendance/{studentId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'STAFF', 'TEACHER')")
@@ -105,13 +125,13 @@ public class LessonController {
     }
     
     @PostMapping("/{lessonId}/attendance/{studentId}/modify")
-    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'STAFF', 'TEACHER')")
     public ApiResponse<Void> modifyAttendance(
             @PathVariable Long lessonId,
             @PathVariable Long studentId,
             @RequestParam AttendanceStatus status,
             @RequestParam(required = false) String remark,
-            @RequestParam String modifyReason,
+            @RequestParam(required = false) String modifyReason,
             @AuthenticationPrincipal UserDetails userDetails) {
         // TODO: 获取当前用户ID
         Long modifiedBy = 1L;

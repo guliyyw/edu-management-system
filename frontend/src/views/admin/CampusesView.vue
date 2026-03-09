@@ -8,7 +8,7 @@
         </div>
       </template>
       
-      <el-table :data="campuses" border v-loading="loading">
+      <el-table :data="campuses" border v-loading="loading" height="calc(100vh - 220px)" style="width: 100%">
         <el-table-column prop="name" label="校区名称" />
         <el-table-column prop="address" label="地址" />
         <el-table-column prop="status" label="状态" width="100">

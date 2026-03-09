@@ -28,6 +28,7 @@ public class LessonServiceImpl implements LessonService {
     private final StudentRepository studentRepository;
     private final LessonAttendanceRepository attendanceRepository;
     private final TravelTimeService travelTimeService;
+    private final BatchScheduleRecordRepository batchScheduleRecordRepository;
     
     @Override
     @Transactional
@@ -101,6 +102,7 @@ public class LessonServiceImpl implements LessonService {
     @Transactional(readOnly = true)
     public List<LessonDto> getByClassId(Long classId) {
         return lessonRepository.findByClassEntityId(classId).stream()
+                .filter(lesson -> lesson.getStatus() != LessonStatus.CANCELLED)
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
@@ -109,6 +111,7 @@ public class LessonServiceImpl implements LessonService {
     @Transactional(readOnly = true)
     public List<LessonDto> getByTeacherIdAndDate(Long teacherId, LocalDate date) {
         return lessonRepository.findByTeacherIdAndDate(teacherId, date).stream()
+                .filter(lesson -> lesson.getStatus() != LessonStatus.CANCELLED)
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
@@ -117,6 +120,7 @@ public class LessonServiceImpl implements LessonService {
     @Transactional(readOnly = true)
     public List<LessonDto> getByTeacherIdAndDateRange(Long teacherId, LocalDate startDate, LocalDate endDate) {
         return lessonRepository.findByTeacherIdAndDateBetween(teacherId, startDate, endDate).stream()
+                .filter(lesson -> lesson.getStatus() != LessonStatus.CANCELLED)
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
@@ -133,6 +137,7 @@ public class LessonServiceImpl implements LessonService {
     @Transactional(readOnly = true)
     public List<LessonDto> getAllLessons() {
         return lessonRepository.findAll().stream()
+                .filter(lesson -> lesson.getStatus() != LessonStatus.CANCELLED)
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
@@ -156,6 +161,13 @@ public class LessonServiceImpl implements LessonService {
         while (!currentDate.isAfter(endDate)) {
             // 检查是否是上课日
             if (currentDate.getDayOfWeek().getValue() == classEntity.getDefaultDayOfWeek()) {
+                // 检查该日期是否已存在课节，避免重复排课
+                List<Lesson> existingLessons = lessonRepository.findByClassEntityIdAndDate(classId, currentDate);
+                if (!existingLessons.isEmpty()) {
+                    currentDate = currentDate.plusDays(1);
+                    continue;
+                }
+
                 Lesson lesson = new Lesson();
                 lesson.setClassEntity(classEntity);
                 lesson.setDate(currentDate);
@@ -172,6 +184,103 @@ public class LessonServiceImpl implements LessonService {
         }
 
         return generatedLessons;
+    }
+
+    @Override
+    @Transactional
+    public BatchScheduleResultDto generateLessonsWithResult(Long classId, LocalDate startDate, LocalDate endDate) {
+        ClassEntity classEntity = classRepository.findById(classId)
+                .orElseThrow(() -> new RuntimeException("班级不存在"));
+
+        // 如果没有设置默认上课时间，无法批量排课
+        if (classEntity.getDefaultDayOfWeek() == null ||
+            classEntity.getDefaultStartTime() == null ||
+            classEntity.getDefaultEndTime() == null) {
+            throw new RuntimeException("班级未设置默认上课时间，无法批量排课。请先设置班级的默认上课时间。");
+        }
+
+        List<LessonDto> successLessons = new ArrayList<>();
+        List<BatchScheduleRecordDto> failRecords = new ArrayList<>();
+        int totalCount = 0;
+
+        LocalDate currentDate = startDate;
+        while (!currentDate.isAfter(endDate)) {
+            // 检查是否是上课日
+            if (currentDate.getDayOfWeek().getValue() == classEntity.getDefaultDayOfWeek()) {
+                totalCount++;
+
+                // 检查跨校区冲突
+                String failReason = null;
+                if (checkCrossCampusConflict(classEntity.getTeacher().getId(), classEntity.getCampus().getId(),
+                        currentDate, classEntity.getDefaultStartTime(), classEntity.getDefaultEndTime(), null)) {
+                    failReason = "跨校区排课冲突，请检查路程时间";
+                }
+
+                // 检查该日期是否已存在课节
+                if (failReason == null) {
+                    List<Lesson> existingLessons = lessonRepository.findByClassEntityIdAndDate(classId, currentDate);
+                    if (!existingLessons.isEmpty()) {
+                        failReason = "该日期已存在课节";
+                    }
+                }
+
+                if (failReason != null) {
+                    // 保存失败记录
+                    BatchScheduleRecord failRecord = new BatchScheduleRecord();
+                    failRecord.setClassEntity(classEntity);
+                    failRecord.setScheduleDate(currentDate);
+                    failRecord.setStatus("FAILED");
+                    failRecord.setFailReason(failReason);
+                    batchScheduleRecordRepository.save(failRecord);
+
+                    failRecords.add(toBatchScheduleRecordDto(failRecord));
+                } else {
+                    // 创建课节
+                    Lesson lesson = new Lesson();
+                    lesson.setClassEntity(classEntity);
+                    lesson.setDate(currentDate);
+                    lesson.setStartTime(classEntity.getDefaultStartTime());
+                    lesson.setEndTime(classEntity.getDefaultEndTime());
+                    lesson.setClassroom(classEntity.getClassroom());
+                    lesson.setStatus(LessonStatus.SCHEDULED);
+
+                    lesson = lessonRepository.save(lesson);
+                    createAttendanceRecords(lesson, classEntity);
+                    successLessons.add(toDto(lesson));
+
+                    // 保存成功记录
+                    BatchScheduleRecord successRecord = new BatchScheduleRecord();
+                    successRecord.setClassEntity(classEntity);
+                    successRecord.setScheduleDate(currentDate);
+                    successRecord.setStatus("SUCCESS");
+                    batchScheduleRecordRepository.save(successRecord);
+                }
+            }
+            currentDate = currentDate.plusDays(1);
+        }
+
+        return BatchScheduleResultDto.builder()
+                .totalCount(totalCount)
+                .successCount(successLessons.size())
+                .failCount(failRecords.size())
+                .successLessons(successLessons)
+                .failRecords(failRecords)
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BatchScheduleRecordDto> getBatchScheduleFailRecords(Long classId, LocalDate startDate, LocalDate endDate) {
+        List<BatchScheduleRecord> records;
+        if (startDate != null && endDate != null) {
+            records = batchScheduleRecordRepository.findByClassEntityIdAndScheduleDateBetween(classId, startDate, endDate);
+        } else {
+            records = batchScheduleRecordRepository.findByClassEntityIdAndStatus(classId, "FAILED");
+        }
+        return records.stream()
+                .filter(r -> "FAILED".equals(r.getStatus()))
+                .map(this::toBatchScheduleRecordDto)
+                .collect(Collectors.toList());
     }
     
     @Override
@@ -257,9 +366,14 @@ public class LessonServiceImpl implements LessonService {
         
         ClassDto classDto = ClassDto.builder()
                 .id(classEntity.getId())
+                .className(classEntity.getClassName())
+                .gradeLevel(classEntity.getGradeLevel())
                 .course(CourseDto.builder()
                         .id(classEntity.getCourse().getId())
                         .name(classEntity.getCourse().getName())
+                        .type(classEntity.getCourse().getType())
+                        .unitPrice(classEntity.getCourse().getUnitPrice())
+                        .trialPrice(classEntity.getCourse().getTrialPrice())
                         .build())
                 .teacher(TeacherDto.builder()
                         .id(classEntity.getTeacher().getId())
@@ -269,6 +383,8 @@ public class LessonServiceImpl implements LessonService {
                         .id(classEntity.getCampus().getId())
                         .name(classEntity.getCampus().getName())
                         .build())
+                .unitPrice(classEntity.getUnitPrice())
+                .teacherFee(classEntity.getTeacherFee())
                 .build();
         
         List<LessonAttendanceDto> attendanceDtos = lesson.getAttendances().stream()
@@ -298,6 +414,19 @@ public class LessonServiceImpl implements LessonService {
                 .status(lesson.getStatus())
                 .attendances(attendanceDtos)
                 .createdAt(lesson.getCreatedAt())
+                .build();
+    }
+
+    private BatchScheduleRecordDto toBatchScheduleRecordDto(BatchScheduleRecord record) {
+        return BatchScheduleRecordDto.builder()
+                .id(record.getId())
+                .classId(record.getClassEntity().getId())
+                .className(record.getClassEntity().getClassName())
+                .scheduleDate(record.getScheduleDate())
+                .status(record.getStatus())
+                .failReason(record.getFailReason())
+                .createdAt(record.getCreatedAt())
+                .updatedAt(record.getUpdatedAt())
                 .build();
     }
 }

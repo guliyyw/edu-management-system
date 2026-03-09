@@ -8,7 +8,7 @@
         </div>
       </template>
       
-      <el-table :data="users" border v-loading="loading">
+      <el-table :data="users" border v-loading="loading" height="calc(100vh - 220px)" style="width: 100%">
         <el-table-column prop="username" label="用户名" width="120" />
         <el-table-column prop="realName" label="真实姓名" width="120" />
         <el-table-column prop="role" label="角色" width="100">
@@ -44,6 +44,10 @@
         </el-form-item>
         <el-form-item label="密码" prop="password" v-if="!isEdit">
           <el-input v-model="form.password" type="password" placeholder="请输入密码" />
+        </el-form-item>
+        <el-form-item label="新密码" prop="password" v-if="isEdit">
+          <el-input v-model="form.password" type="password" placeholder="不修改请留空" />
+          <div class="form-tip">留空表示不修改密码</div>
         </el-form-item>
         <el-form-item label="真实姓名" prop="realName">
           <el-input v-model="form.realName" placeholder="请输入真实姓名" />
@@ -90,7 +94,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import axios from 'axios'
+import { userApi } from '@/api/user'
 import { teacherApi } from '@/api/teacher'
 import { campusApi } from '@/api/campus'
 import dayjs from 'dayjs'
@@ -146,17 +150,12 @@ const formatDate = (date: string) => {
 const fetchUsers = async () => {
   loading.value = true
   try {
-    // TODO: 实现获取用户列表API
-    const res = await axios.get('/api/users')
-    users.value = res.data.data || []
-  } catch (error) {
+    const res = await userApi.getAll()
+    users.value = res.data || []
+  } catch (error: any) {
     console.error('获取用户列表失败:', error)
-    // 模拟数据
-    users.value = [
-      { id: 1, username: 'admin', realName: '系统管理员', role: 'ADMIN', phone: '13800000000', status: 'ACTIVE', lastLoginAt: new Date() },
-      { id: 2, username: 'staff1', realName: '教务一号', role: 'STAFF', phone: '13800000001', status: 'ACTIVE', lastLoginAt: new Date() },
-      { id: 3, username: 'teacher1', realName: '张老师', role: 'TEACHER', phone: '13800138001', status: 'ACTIVE', lastLoginAt: null }
-    ]
+    ElMessage.error(error.response?.data?.message || '获取用户列表失败')
+    users.value = []
   } finally {
     loading.value = false
   }
@@ -213,14 +212,24 @@ const editUser = (row: any) => {
 const saveUser = async () => {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
-  
+
   try {
-    // TODO: 实现保存用户API
+    const data = { ...form.value }
+    // 编辑模式下如果密码为空，删除该字段（表示不修改密码）
+    if (isEdit.value && !data.password) {
+      delete (data as any).password
+    }
+
+    if (isEdit.value && form.value.id) {
+      await userApi.update(form.value.id, data)
+    } else {
+      await userApi.create(data)
+    }
     ElMessage.success(isEdit.value ? '更新成功' : '添加成功')
     dialogVisible.value = false
     fetchUsers()
-  } catch (error) {
-    ElMessage.error(isEdit.value ? '更新失败' : '添加失败')
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || (isEdit.value ? '更新失败' : '添加失败'))
   }
 }
 
@@ -231,13 +240,13 @@ const deleteUser = async (id: number) => {
       cancelButtonText: '取消',
       type: 'warning'
     })
-    
-    // TODO: 实现删除用户API
+
+    await userApi.delete(id)
     ElMessage.success('删除成功')
     fetchUsers()
-  } catch (error) {
+  } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error('删除失败')
+      ElMessage.error(error.response?.data?.message || '删除失败')
     }
   }
 }
