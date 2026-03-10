@@ -1,0 +1,74 @@
+/* 表格通用样式 */
+.table-container {
+  width: 100%;
+}
+
+.table-container .el-table {
+  width: 100%;
+}
+
+/* 允许调整列宽 */
+.table-container .el-table .el-table__header-wrapper th .cell {
+  white-space: nowrap;
+}
+
+/* 表格内容不换行，显示省略号 */
+.table-container .el-table .cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 自适应高度表格 */
+.auto-height-table .el-table {
+  height: calc(100vh - 280px);
+  min-height: 400px;
+}
+
+.auto-height-table .el-table .el-table__body-wrapper {
+  overflow-y: auto;
+}
+
+/* 卡片内的表格容器 */
+.el-card .el-table {
+  /* 默认高度 */
+  height: auto;
+  max-height: calc(100vh - 240px);
+}
+
+/* 表格头部样式 */
+.el-card .el-table th {
+  background-color: #f5f7fa;
+  font-weight: 600;
+}
+
+/* 调整列宽的拖动条样式 */
+.el-card .el-table .el-table__header-wrapper th .cell {
+  position: relative;
+}
+
+/* 调整列宽的指示器 */
+.el-card .el-table .el-table__header-wrapper th .cell::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 16px;
+  background-color: #dcdfe6;
+  cursor: col-resize;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.el-card .el-table .el-table__header-wrapper th:hover .cell::after {
+  opacity: 1;
+}
+
+/* 响应式表格 */
+@media screen and (max-width: 1200px) {
+  .el-card .el-table {
+    max-height: calc(100vh - 200px);
+  }
+}
