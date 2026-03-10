@@ -37,6 +37,9 @@ public class BackupRecord {
     @Column
     private String errorMessage;
 
+    @Column
+    private String databaseType;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

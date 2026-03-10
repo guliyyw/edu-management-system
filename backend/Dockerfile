@@ -1,8 +1,21 @@
 FROM eclipse-temurin:17-jdk-alpine AS builder
 
+# 安装 Maven
+RUN apk add --no-cache maven
+
 WORKDIR /app
-COPY . .
-RUN ./mvnw clean package -DskipTests
+
+# 先复制 pom.xml，利用 Docker 缓存层
+COPY pom.xml .
+
+# 下载依赖（这一层会被缓存，只要 pom.xml 不变就不会重新下载）
+RUN mvn dependency:go-offline -B
+
+# 再复制源代码
+COPY src ./src
+
+# 编译打包（跳过测试）
+RUN mvn clean package -DskipTests -B
 
 FROM eclipse-temurin:17-jre-alpine
 

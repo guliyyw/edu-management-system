@@ -17,6 +17,7 @@ public class BackupRecordDto {
     private String description;
     private String status;
     private String errorMessage;
+    private String databaseType;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

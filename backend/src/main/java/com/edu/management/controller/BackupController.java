@@ -32,6 +32,9 @@ public class BackupController {
     @Value("${spring.datasource.url}")
     private String datasourceUrl;
 
+    @Value("${spring.datasource.username:}")
+    private String dbUsername;
+
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<BackupRecordDto> createBackup(@RequestParam(required = false) String description) {
@@ -116,32 +119,48 @@ public class BackupController {
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<Map<String, String>> getDatabaseInfo() {
         Map<String, String> info = new HashMap<>();
-        // 提取数据库文件路径
-        String dbPath = extractDbPath(datasourceUrl);
         info.put("url", datasourceUrl);
-        info.put("path", dbPath);
-        info.put("type", datasourceUrl.contains("h2") ? "H2" : "Unknown");
+        info.put("username", dbUsername);
+        
+        // 判断数据库类型
+        String dbType;
+        if (datasourceUrl.contains("postgresql") || datasourceUrl.contains("postgres")) {
+            dbType = "PostgreSQL";
+        } else if (datasourceUrl.contains("h2")) {
+            dbType = "H2";
+        } else if (datasourceUrl.contains("mysql")) {
+            dbType = "MySQL";
+        } else {
+            dbType = "Unknown";
+        }
+        info.put("type", dbType);
+        
+        // 提取数据库名称
+        String dbName = extractDatabaseName(datasourceUrl);
+        info.put("databaseName", dbName);
+        
         return ApiResponse.success(info);
     }
 
-    private String extractDbPath(String url) {
-        if (url == null || !url.contains("h2")) {
-            return "未知";
-        }
-        // H2 file URL 格式: jdbc:h2:file:~/path/to/db;...
-        int fileIndex = url.indexOf("file:");
-        if (fileIndex > 0) {
-            String path = url.substring(fileIndex + 5);
-            int semicolonIndex = path.indexOf(";");
-            if (semicolonIndex > 0) {
-                path = path.substring(0, semicolonIndex);
+    private String extractDatabaseName(String url) {
+        if (url.contains("postgresql") || url.contains("mysql")) {
+            int lastSlash = url.lastIndexOf('/');
+            int questionMark = url.indexOf('?', lastSlash);
+            if (questionMark > 0) {
+                return url.substring(lastSlash + 1, questionMark);
             }
-            // 将 ~ 替换为用户主目录
-            if (path.startsWith("~")) {
-                path = System.getProperty("user.home") + path.substring(1);
+            return url.substring(lastSlash + 1);
+        } else if (url.contains("h2")) {
+            int fileIndex = url.indexOf("file:");
+            if (fileIndex > 0) {
+                String path = url.substring(fileIndex + 5);
+                int semicolonIndex = path.indexOf(";");
+                if (semicolonIndex > 0) {
+                    path = path.substring(0, semicolonIndex);
+                }
+                return new File(path).getName();
             }
-            return path;
         }
-        return url;
+        return "unknown";
     }
 }

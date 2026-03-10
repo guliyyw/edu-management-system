@@ -14,11 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -45,10 +41,34 @@ public class BackupServiceImpl implements BackupService {
     @Value("${spring.datasource.url}")
     private String datasourceUrl;
 
+    @Value("${spring.datasource.username:}")
+    private String dbUsername;
+
+    @Value("${spring.datasource.password:}")
+    private String dbPassword;
+
     private static final String STATUS_SUCCESS = "SUCCESS";
     private static final String STATUS_FAILED = "FAILED";
     private static final String BACKUP_TYPE_MANUAL = "MANUAL";
     private static final String BACKUP_TYPE_AUTO = "AUTO";
+
+    /**
+     * 获取数据库类型
+     */
+    private DatabaseType getDatabaseType() {
+        if (datasourceUrl.contains("postgresql") || datasourceUrl.contains("postgres")) {
+            return DatabaseType.POSTGRESQL;
+        } else if (datasourceUrl.contains("h2")) {
+            return DatabaseType.H2;
+        } else if (datasourceUrl.contains("mysql")) {
+            return DatabaseType.MYSQL;
+        }
+        return DatabaseType.UNKNOWN;
+    }
+
+    enum DatabaseType {
+        POSTGRESQL, H2, MYSQL, UNKNOWN
+    }
 
     @Override
     @Transactional
@@ -87,19 +107,33 @@ public class BackupServiceImpl implements BackupService {
         record.setDescription(description);
         record.setStatus("PENDING");
         record.setFileSize(0L);
+        record.setDatabaseType(getDatabaseType().name());
 
         record = backupRecordRepository.save(record);
         log.info("备份记录已创建，ID: {}", record.getId());
 
         try {
-            // 执行H2数据库备份
-            if (datasourceUrl.contains("h2")) {
-                log.info("开始导出H2数据库...");
-                exportH2Database(sqlFilePath);
-                log.info("H2数据库导出完成");
-            } else {
-                throw new RuntimeException("不支持的数据库类型，仅支持H2数据库");
+            // 根据数据库类型执行备份
+            DatabaseType dbType = getDatabaseType();
+            log.info("数据库类型: {}", dbType);
+
+            switch (dbType) {
+                case POSTGRESQL:
+                    log.info("开始导出 PostgreSQL 数据库...");
+                    exportPostgreSQLDatabase(sqlFilePath);
+                    break;
+                case H2:
+                    log.info("开始导出 H2 数据库...");
+                    exportH2Database(sqlFilePath);
+                    break;
+                case MYSQL:
+                    log.info("开始导出 MySQL 数据库...");
+                    exportMySQLDatabase(sqlFilePath);
+                    break;
+                default:
+                    throw new RuntimeException("不支持的数据库类型: " + datasourceUrl);
             }
+            log.info("数据库导出完成");
 
             // 检查SQL文件是否生成
             File sqlFile = new File(sqlFilePath);
@@ -136,6 +170,55 @@ public class BackupServiceImpl implements BackupService {
         }
     }
 
+    /**
+     * 导出 PostgreSQL 数据库
+     */
+    private void exportPostgreSQLDatabase(String outputFile) throws Exception {
+        // 解析数据库连接信息
+        String dbName = extractDatabaseName(datasourceUrl);
+        String host = extractHost(datasourceUrl);
+        int port = extractPort(datasourceUrl);
+
+        log.info("PostgreSQL 连接信息: host={}, port={}, database={}, user={}", host, port, dbName, dbUsername);
+
+        // 构建 pg_dump 命令
+        ProcessBuilder pb = new ProcessBuilder(
+                "pg_dump",
+                "-h", host,
+                "-p", String.valueOf(port),
+                "-U", dbUsername,
+                "-d", dbName,
+                "-f", outputFile,
+                "--verbose"
+        );
+
+        // 设置环境变量 PGPASSWORD
+        pb.environment().put("PGPASSWORD", dbPassword);
+        pb.redirectErrorStream(true);
+
+        Process process = pb.start();
+
+        // 读取输出
+        StringBuilder output = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+                log.debug("pg_dump: {}", line);
+            }
+        }
+
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+            throw new RuntimeException("pg_dump 执行失败，退出码: " + exitCode + ", 输出: " + output);
+        }
+
+        log.info("PostgreSQL 数据库已导出到: {}", outputFile);
+    }
+
+    /**
+     * 导出 H2 数据库
+     */
     private void exportH2Database(String outputFile) throws SQLException, IOException {
         // 确保目录存在
         File outputDir = new File(outputFile).getParentFile();
@@ -152,6 +235,122 @@ public class BackupServiceImpl implements BackupService {
 
             log.info("H2数据库已导出到: {}", outputFile);
         }
+    }
+
+    /**
+     * 导出 MySQL 数据库
+     */
+    private void exportMySQLDatabase(String outputFile) throws Exception {
+        String dbName = extractDatabaseName(datasourceUrl);
+        String host = extractHost(datasourceUrl);
+        int port = extractPort(datasourceUrl);
+
+        log.info("MySQL 连接信息: host={}, port={}, database={}, user={}", host, port, dbName, dbUsername);
+
+        ProcessBuilder pb = new ProcessBuilder(
+                "mysqldump",
+                "-h", host,
+                "-P", String.valueOf(port),
+                "-u", dbUsername,
+                "-p" + dbPassword,
+                "--databases", dbName,
+                "--result-file", outputFile,
+                "--verbose"
+        );
+
+        pb.redirectErrorStream(true);
+        Process process = pb.start();
+
+        StringBuilder output = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+            }
+        }
+
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+            throw new RuntimeException("mysqldump 执行失败，退出码: " + exitCode + ", 输出: " + output);
+        }
+
+        log.info("MySQL 数据库已导出到: {}", outputFile);
+    }
+
+    /**
+     * 从 JDBC URL 提取数据库名
+     */
+    private String extractDatabaseName(String url) {
+        // PostgreSQL: jdbc:postgresql://host:port/dbname
+        // H2: jdbc:h2:file:~/path/to/db
+        // MySQL: jdbc:mysql://host:port/dbname
+
+        if (url.contains("postgresql") || url.contains("mysql")) {
+            int lastSlash = url.lastIndexOf('/');
+            int questionMark = url.indexOf('?', lastSlash);
+            if (questionMark > 0) {
+                return url.substring(lastSlash + 1, questionMark);
+            }
+            return url.substring(lastSlash + 1);
+        } else if (url.contains("h2")) {
+            int fileIndex = url.indexOf("file:");
+            if (fileIndex > 0) {
+                String path = url.substring(fileIndex + 5);
+                int semicolonIndex = path.indexOf(";");
+                if (semicolonIndex > 0) {
+                    path = path.substring(0, semicolonIndex);
+                }
+                return new File(path).getName();
+            }
+        }
+        return "unknown";
+    }
+
+    /**
+     * 从 JDBC URL 提取主机
+     */
+    private String extractHost(String url) {
+        if (url.contains("postgresql") || url.contains("mysql")) {
+            int start = url.indexOf("://") + 3;
+            int end = url.lastIndexOf(':');
+            if (end < start) {
+                end = url.indexOf('/', start);
+            }
+            if (end > start) {
+                return url.substring(start, end);
+            }
+        }
+        return "localhost";
+    }
+
+    /**
+     * 从 JDBC URL 提取端口
+     */
+    private int extractPort(String url) {
+        if (url.contains("postgresql")) {
+            int start = url.lastIndexOf(':') + 1;
+            int end = url.indexOf('/', start);
+            if (end > start) {
+                try {
+                    return Integer.parseInt(url.substring(start, end));
+                } catch (NumberFormatException e) {
+                    return 5432;
+                }
+            }
+            return 5432;
+        } else if (url.contains("mysql")) {
+            int start = url.lastIndexOf(':') + 1;
+            int end = url.indexOf('/', start);
+            if (end > start) {
+                try {
+                    return Integer.parseInt(url.substring(start, end));
+                } catch (NumberFormatException e) {
+                    return 3306;
+                }
+            }
+            return 3306;
+        }
+        return 5432;
     }
 
     private void zipFile(String sourceFile, String zipFile) throws IOException {
@@ -232,8 +431,6 @@ public class BackupServiceImpl implements BackupService {
 
     /**
      * 验证并规范化备份路径
-     * @param path 用户输入的路径
-     * @return 规范化后的绝对路径
      */
     private String validateAndNormalizeBackupPath(String path) {
         if (path == null || path.trim().isEmpty()) {
@@ -307,11 +504,20 @@ public class BackupServiceImpl implements BackupService {
             // 解压备份文件
             sqlFilePath = unzipFile(record.getFilePath());
 
-            // 恢复数据库
-            if (datasourceUrl.contains("h2")) {
-                restoreH2Database(sqlFilePath);
-            } else {
-                throw new RuntimeException("不支持的数据库类型");
+            // 根据数据库类型恢复
+            DatabaseType dbType = DatabaseType.valueOf(record.getDatabaseType());
+            switch (dbType) {
+                case POSTGRESQL:
+                    restorePostgreSQLDatabase(sqlFilePath);
+                    break;
+                case H2:
+                    restoreH2Database(sqlFilePath);
+                    break;
+                case MYSQL:
+                    restoreMySQLDatabase(sqlFilePath);
+                    break;
+                default:
+                    throw new RuntimeException("不支持的数据库类型: " + record.getDatabaseType());
             }
 
             log.info("数据库已从备份恢复: {}", record.getFileName());
@@ -330,6 +536,87 @@ public class BackupServiceImpl implements BackupService {
                 }
             }
         }
+    }
+
+    /**
+     * 恢复 PostgreSQL 数据库
+     */
+    private void restorePostgreSQLDatabase(String sqlFilePath) throws Exception {
+        String dbName = extractDatabaseName(datasourceUrl);
+        String host = extractHost(datasourceUrl);
+        int port = extractPort(datasourceUrl);
+
+        log.info("开始恢复 PostgreSQL 数据库: host={}, port={}, database={}", host, port, dbName);
+
+        ProcessBuilder pb = new ProcessBuilder(
+                "psql",
+                "-h", host,
+                "-p", String.valueOf(port),
+                "-U", dbUsername,
+                "-d", dbName,
+                "-f", sqlFilePath,
+                "--verbose"
+        );
+
+        pb.environment().put("PGPASSWORD", dbPassword);
+        pb.redirectErrorStream(true);
+
+        Process process = pb.start();
+
+        StringBuilder output = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+                log.debug("psql: {}", line);
+            }
+        }
+
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+            throw new RuntimeException("psql 执行失败，退出码: " + exitCode + ", 输出: " + output);
+        }
+
+        log.info("PostgreSQL 数据库恢复完成");
+    }
+
+    /**
+     * 恢复 MySQL 数据库
+     */
+    private void restoreMySQLDatabase(String sqlFilePath) throws Exception {
+        String dbName = extractDatabaseName(datasourceUrl);
+        String host = extractHost(datasourceUrl);
+        int port = extractPort(datasourceUrl);
+
+        log.info("开始恢复 MySQL 数据库: host={}, port={}, database={}", host, port, dbName);
+
+        ProcessBuilder pb = new ProcessBuilder(
+                "mysql",
+                "-h", host,
+                "-P", String.valueOf(port),
+                "-u", dbUsername,
+                "-p" + dbPassword,
+                dbName,
+                "-e", "source " + sqlFilePath
+        );
+
+        pb.redirectErrorStream(true);
+        Process process = pb.start();
+
+        StringBuilder output = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+            }
+        }
+
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+            throw new RuntimeException("mysql 执行失败，退出码: " + exitCode + ", 输出: " + output);
+        }
+
+        log.info("MySQL 数据库恢复完成");
     }
 
     private String unzipFile(String zipFilePath) throws IOException {
@@ -414,10 +701,19 @@ public class BackupServiceImpl implements BackupService {
             }
 
             // 恢复数据库
-            if (datasourceUrl.contains("h2")) {
-                restoreH2Database(sqlFilePath);
-            } else {
-                throw new RuntimeException("不支持的数据库类型");
+            DatabaseType dbType = getDatabaseType();
+            switch (dbType) {
+                case POSTGRESQL:
+                    restorePostgreSQLDatabase(sqlFilePath);
+                    break;
+                case H2:
+                    restoreH2Database(sqlFilePath);
+                    break;
+                case MYSQL:
+                    restoreMySQLDatabase(sqlFilePath);
+                    break;
+                default:
+                    throw new RuntimeException("不支持的数据库类型: " + dbType);
             }
 
             log.info("备份文件导入成功: {}", fileName);
@@ -516,6 +812,7 @@ public class BackupServiceImpl implements BackupService {
                 .description(record.getDescription())
                 .status(record.getStatus())
                 .errorMessage(record.getErrorMessage())
+                .databaseType(record.getDatabaseType())
                 .createdAt(record.getCreatedAt())
                 .updatedAt(record.getUpdatedAt())
                 .build();
