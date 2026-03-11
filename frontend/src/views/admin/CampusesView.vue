@@ -8,21 +8,56 @@
         </div>
       </template>
       
-      <el-table :data="campuses" border v-loading="loading" height="calc(100vh - 220px)" style="width: 100%">
-        <el-table-column prop="name" label="校区名称" />
-        <el-table-column prop="address" label="地址" />
-        <el-table-column prop="status" label="状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">{{ row.status }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="150">
-          <template #default="{ row }">
-            <el-button type="primary" size="small" @click="editCampus(row)">编辑</el-button>
-            <el-button type="danger" size="small" @click="deleteCampus(row.id)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <!-- 桌面端表格 -->
+      <div class="mobile-card-table">
+        <el-table :data="campuses" border v-loading="loading" height="calc(100vh - 220px)" style="width: 100%">
+          <el-table-column prop="name" label="校区名称" />
+          <el-table-column prop="address" label="地址" />
+          <el-table-column prop="status" label="状态" width="100">
+            <template #default="{ row }">
+              <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">{{ row.status }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="150">
+            <template #default="{ row }">
+              <el-button type="primary" size="small" @click="editCampus(row)">编辑</el-button>
+              <el-button type="danger" size="small" @click="deleteCampus(row.id)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+      
+      <!-- 移动端卡片列表 -->
+      <div class="mobile-card-list">
+        <div v-if="loading" class="mobile-loading">
+          <el-skeleton :rows="3" animated />
+        </div>
+        <template v-else>
+          <div 
+            v-for="campus in campuses" 
+            :key="campus.id" 
+            class="mobile-card-item"
+          >
+            <div class="mobile-card-header">
+              <span class="mobile-card-title">{{ campus.name }}</span>
+              <el-tag :type="campus.status === 'ACTIVE' ? 'success' : 'info'" size="small">
+                {{ campus.status === 'ACTIVE' ? '正常' : '停用' }}
+              </el-tag>
+            </div>
+            <div class="mobile-card-body">
+              <div class="mobile-card-row">
+                <span class="mobile-card-label">地址</span>
+                <span class="mobile-card-value">{{ campus.address || '-' }}</span>
+              </div>
+            </div>
+            <div class="mobile-card-actions">
+              <el-button type="primary" size="small" @click="editCampus(campus)">编辑</el-button>
+              <el-button type="danger" size="small" @click="deleteCampus(campus.id)">删除</el-button>
+            </div>
+          </div>
+          <el-empty v-if="campuses.length === 0" description="暂无数据" />
+        </template>
+      </div>
     </el-card>
     
     <!-- 添加/编辑对话框 -->
@@ -149,5 +184,10 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+/* 移动端加载状态 */
+.mobile-loading {
+  padding: 20px;
 }
 </style>

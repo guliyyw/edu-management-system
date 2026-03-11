@@ -548,6 +548,12 @@ public class BackupServiceImpl implements BackupService {
 
         log.info("开始恢复 PostgreSQL 数据库: host={}, port={}, database={}", host, port, dbName);
 
+        // 第一步：清理现有数据库对象（删除所有表、序列等）
+        log.info("清理现有数据库对象...");
+        cleanPostgreSQLDatabase(host, port, dbName);
+        log.info("数据库对象清理完成");
+
+        // 第二步：执行恢复
         ProcessBuilder pb = new ProcessBuilder(
                 "psql",
                 "-h", host,
@@ -555,7 +561,7 @@ public class BackupServiceImpl implements BackupService {
                 "-U", dbUsername,
                 "-d", dbName,
                 "-f", sqlFilePath,
-                "--verbose"
+                "-v", "ON_ERROR_STOP=1"
         );
 
         pb.environment().put("PGPASSWORD", dbPassword);
@@ -581,6 +587,67 @@ public class BackupServiceImpl implements BackupService {
     }
 
     /**
+     * 清理 PostgreSQL 数据库中的所有对象
+     */
+    private void cleanPostgreSQLDatabase(String host, int port, String dbName) throws Exception {
+        // 构建 DROP 命令，删除所有表、序列、视图等
+        String dropScript = """
+            DO $$
+            DECLARE
+                r RECORD;
+            BEGIN
+                -- 删除所有外键约束
+                FOR r IN (SELECT constraint_name, table_name FROM information_schema.table_constraints WHERE constraint_type = 'FOREIGN KEY') LOOP
+                    EXECUTE 'ALTER TABLE ' || quote_ident(r.table_name) || ' DROP CONSTRAINT IF EXISTS ' || quote_ident(r.constraint_name) || ' CASCADE';
+                END LOOP;
+                
+                -- 删除所有表
+                FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+                    EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(r.tablename) || ' CASCADE';
+                END LOOP;
+                
+                -- 删除所有序列
+                FOR r IN (SELECT sequencename FROM pg_sequences WHERE schemaname = 'public') LOOP
+                    EXECUTE 'DROP SEQUENCE IF EXISTS ' || quote_ident(r.sequencename) || ' CASCADE';
+                END LOOP;
+                
+                -- 删除所有视图
+                FOR r IN (SELECT viewname FROM pg_views WHERE schemaname = 'public') LOOP
+                    EXECUTE 'DROP VIEW IF EXISTS ' || quote_ident(r.viewname) || ' CASCADE';
+                END LOOP;
+            END $$;
+            """;
+
+        ProcessBuilder pb = new ProcessBuilder(
+                "psql",
+                "-h", host,
+                "-p", String.valueOf(port),
+                "-U", dbUsername,
+                "-d", dbName,
+                "-c", dropScript
+        );
+
+        pb.environment().put("PGPASSWORD", dbPassword);
+        pb.redirectErrorStream(true);
+
+        Process process = pb.start();
+
+        StringBuilder output = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+            }
+        }
+
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+            log.warn("清理数据库对象时出错，退出码: {}, 输出: {}", exitCode, output);
+            // 不抛出异常，因为可能是空数据库
+        }
+    }
+
+    /**
      * 恢复 MySQL 数据库
      */
     private void restoreMySQLDatabase(String sqlFilePath) throws Exception {
@@ -590,6 +657,12 @@ public class BackupServiceImpl implements BackupService {
 
         log.info("开始恢复 MySQL 数据库: host={}, port={}, database={}", host, port, dbName);
 
+        // 第一步：清理现有数据库对象
+        log.info("清理现有数据库对象...");
+        cleanMySQLDatabase(host, port, dbName);
+        log.info("数据库对象清理完成");
+
+        // 第二步：执行恢复
         ProcessBuilder pb = new ProcessBuilder(
                 "mysql",
                 "-h", host,
@@ -617,6 +690,84 @@ public class BackupServiceImpl implements BackupService {
         }
 
         log.info("MySQL 数据库恢复完成");
+    }
+
+    /**
+     * 清理 MySQL 数据库中的所有对象
+     */
+    private void cleanMySQLDatabase(String host, int port, String dbName) throws Exception {
+        // 生成 DROP 语句：先删除外键约束，再删除表
+        String dropScript = """
+            SELECT 
+                CONCAT('ALTER TABLE ', table_name, ' DROP FOREIGN KEY ', constraint_name, ';')
+            FROM 
+                information_schema.table_constraints 
+            WHERE 
+                constraint_type = 'FOREIGN KEY' AND table_schema = DATABASE();
+            
+            SELECT 
+                CONCAT('DROP TABLE IF EXISTS ', table_name, ';')
+            FROM 
+                information_schema.tables 
+            WHERE 
+                table_schema = DATABASE() AND table_type = 'BASE TABLE';
+            
+            SELECT 
+                CONCAT('DROP VIEW IF EXISTS ', table_name, ';')
+            FROM 
+                information_schema.tables 
+            WHERE 
+                table_schema = DATABASE() AND table_type = 'VIEW';
+            """;
+
+        // 执行 DROP 语句
+        ProcessBuilder pb = new ProcessBuilder(
+                "mysql",
+                "-h", host,
+                "-P", String.valueOf(port),
+                "-u", dbUsername,
+                "-p" + dbPassword,
+                "-N", "-B",  // 不显示列名，批量模式
+                "-e", dropScript,
+                dbName
+        );
+
+        pb.redirectErrorStream(true);
+        Process process = pb.start();
+
+        StringBuilder output = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+            }
+        }
+
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+            log.warn("生成清理语句时出错，退出码: {}, 输出: {}", exitCode, output);
+        }
+
+        // 执行生成的 DROP 语句
+        if (output.length() > 0) {
+            ProcessBuilder execPb = new ProcessBuilder(
+                    "mysql",
+                    "-h", host,
+                    "-P", String.valueOf(port),
+                    "-u", dbUsername,
+                    "-p" + dbPassword,
+                    "-e", output.toString(),
+                    dbName
+            );
+
+            execPb.redirectErrorStream(true);
+            Process execProcess = execPb.start();
+
+            int execExitCode = execProcess.waitFor();
+            if (execExitCode != 0) {
+                log.warn("执行清理语句时出错，退出码: {}", execExitCode);
+            }
+        }
     }
 
     private String unzipFile(String zipFilePath) throws IOException {

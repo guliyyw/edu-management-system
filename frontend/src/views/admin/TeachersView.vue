@@ -8,33 +8,82 @@
         </div>
       </template>
       
-      <el-table :data="teachers" border v-loading="loading" height="calc(100vh - 220px)" style="width: 100%">
-        <el-table-column prop="name" label="老师姓名" width="120" />
-        <el-table-column prop="phone" label="电话" width="150" />
-        <el-table-column label="所属校区">
-          <template #default="{ row }">
-            <el-tag
-              v-for="campus in row.campuses"
-              :key="campus.id"
-              size="small"
-              style="margin-right: 5px;"
-            >
-              {{ campus.name }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">{{ row.status }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="150">
-          <template #default="{ row }">
-            <el-button type="primary" size="small" @click="editTeacher(row)">编辑</el-button>
-            <el-button type="danger" size="small" @click="deleteTeacher(row.id)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <!-- 桌面端表格 -->
+      <div class="mobile-card-table">
+        <el-table :data="teachers" border v-loading="loading" height="calc(100vh - 220px)" style="width: 100%">
+          <el-table-column prop="name" label="老师姓名" width="120" />
+          <el-table-column prop="phone" label="电话" width="150" />
+          <el-table-column label="所属校区">
+            <template #default="{ row }">
+              <el-tag
+                v-for="campus in row.campuses"
+                :key="campus.id"
+                size="small"
+                style="margin-right: 5px;"
+              >
+                {{ campus.name }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="status" label="状态" width="100">
+            <template #default="{ row }">
+              <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">{{ row.status }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="150">
+            <template #default="{ row }">
+              <el-button type="primary" size="small" @click="editTeacher(row)">编辑</el-button>
+              <el-button type="danger" size="small" @click="deleteTeacher(row.id)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+      
+      <!-- 移动端卡片列表 -->
+      <div class="mobile-card-list">
+        <div v-if="loading" class="mobile-loading">
+          <el-skeleton :rows="3" animated />
+        </div>
+        <template v-else>
+          <div 
+            v-for="teacher in teachers" 
+            :key="teacher.id" 
+            class="mobile-card-item"
+          >
+            <div class="mobile-card-header">
+              <span class="mobile-card-title">{{ teacher.name }}</span>
+              <el-tag :type="teacher.status === 'ACTIVE' ? 'success' : 'info'" size="small">
+                {{ teacher.status === 'ACTIVE' ? '在职' : '停用' }}
+              </el-tag>
+            </div>
+            <div class="mobile-card-body">
+              <div class="mobile-card-row">
+                <span class="mobile-card-label">电话</span>
+                <span class="mobile-card-value">{{ teacher.phone || '-' }}</span>
+              </div>
+              <div class="mobile-card-row">
+                <span class="mobile-card-label">所属校区</span>
+                <span class="mobile-card-value">
+                  <el-tag
+                    v-for="campus in teacher.campuses"
+                    :key="campus.id"
+                    size="small"
+                    style="margin-right: 5px; margin-bottom: 5px;"
+                  >
+                    {{ campus.name }}
+                  </el-tag>
+                  <span v-if="!teacher.campuses?.length">-</span>
+                </span>
+              </div>
+            </div>
+            <div class="mobile-card-actions">
+              <el-button type="primary" size="small" @click="editTeacher(teacher)">编辑</el-button>
+              <el-button type="danger" size="small" @click="deleteTeacher(teacher.id)">删除</el-button>
+            </div>
+          </div>
+          <el-empty v-if="teachers.length === 0" description="暂无数据" />
+        </template>
+      </div>
     </el-card>
     
     <!-- 添加/编辑对话框 -->
@@ -193,5 +242,10 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+/* 移动端加载状态 */
+.mobile-loading {
+  padding: 20px;
 }
 </style>

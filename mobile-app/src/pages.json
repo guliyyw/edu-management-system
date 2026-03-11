@@ -1,0 +1,106 @@
+{
+  "pages": [
+    {
+      "path": "pages/config/config",
+      "style": {
+        "navigationBarTitleText": "服务器配置",
+        "navigationStyle": "default"
+      }
+    },
+    {
+      "path": "pages/login/login",
+      "style": {
+        "navigationBarTitleText": "登录",
+        "navigationStyle": "default"
+      }
+    },
+    {
+      "path": "pages/home/home",
+      "style": {
+        "navigationBarTitleText": "首页",
+        "navigationStyle": "default"
+      }
+    },
+    {
+      "path": "pages/announcements/announcements",
+      "style": {
+        "navigationBarTitleText": "公告",
+        "navigationStyle": "default"
+      }
+    },
+    {
+      "path": "pages/schedule/schedule",
+      "style": {
+        "navigationBarTitleText": "课程表",
+        "navigationStyle": "default"
+      }
+    },
+    {
+      "path": "pages/attendance/attendance",
+      "style": {
+        "navigationBarTitleText": "考勤",
+        "navigationStyle": "default"
+      }
+    },
+    {
+      "path": "pages/checkin/checkin",
+      "style": {
+        "navigationBarTitleText": "签到管理",
+        "navigationStyle": "default"
+      }
+    },
+    {
+      "path": "pages/travel/travel",
+      "style": {
+        "navigationBarTitleText": "路程配置",
+        "navigationStyle": "default"
+      }
+    },
+    {
+      "path": "pages/stats/stats",
+      "style": {
+        "navigationBarTitleText": "个人统计",
+        "navigationStyle": "default"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "教育管理系统",
+    "navigationBarBackgroundColor": "#F8F8F8",
+    "backgroundColor": "#F8F8F8"
+  },
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#007AFF",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/home/home",
+        "text": "首页",
+        "iconPath": "static/home.png",
+        "selectedIconPath": "static/home-active.png"
+      },
+      {
+        "pagePath": "pages/schedule/schedule",
+        "text": "课程",
+        "iconPath": "static/schedule.png",
+        "selectedIconPath": "static/schedule-active.png"
+      },
+      {
+        "pagePath": "pages/attendance/attendance",
+        "text": "考勤",
+        "iconPath": "static/attendance.png",
+        "selectedIconPath": "static/attendance-active.png"
+      },
+      {
+        "pagePath": "pages/announcements/announcements",
+        "text": "公告",
+        "iconPath": "static/announcement.png",
+        "selectedIconPath": "static/announcement-active.png"
+      }
+    ]
+  },
+  "condition": {}
+}

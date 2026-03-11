@@ -52,38 +52,88 @@
         </div>
       </template>
       
-      <el-table :data="filteredStudents" border v-loading="loading" height="calc(100vh - 240px)" style="width: 100%">
-        <el-table-column prop="name" label="学生姓名" width="120" />
-        <el-table-column prop="gradeLevel" label="年级" width="100">
-          <template #default="{ row }">
-            <el-tag :type="getGradeType(row.gradeLevel)" size="small">{{ getGradeLabel(row.gradeLevel) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="parentName" label="家长姓名" width="120" />
-        <el-table-column prop="parentPhone" label="家长电话" width="150" />
-        <el-table-column prop="status" label="状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="createdAt" label="创建时间" width="180">
-          <template #default="{ row }">
-            {{ formatDate(row.createdAt) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" size="small" @click="editStudent(row)">编辑</el-button>
-            <el-button
-              :type="row.status === 'ACTIVE' ? 'warning' : 'success'"
-              size="small"
-              @click="toggleStudentStatus(row)"
-            >
-              {{ row.status === 'ACTIVE' ? '停用' : '启用' }}
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <!-- 桌面端表格 -->
+      <div class="mobile-card-table">
+        <el-table :data="filteredStudents" border v-loading="loading" height="calc(100vh - 240px)" style="width: 100%">
+          <el-table-column prop="name" label="学生姓名" width="120" />
+          <el-table-column prop="gradeLevel" label="年级" width="100">
+            <template #default="{ row }">
+              <el-tag :type="getGradeType(row.gradeLevel)" size="small">{{ getGradeLabel(row.gradeLevel) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="parentName" label="家长姓名" width="120" />
+          <el-table-column prop="parentPhone" label="家长电话" width="150" />
+          <el-table-column prop="status" label="状态" width="100">
+            <template #default="{ row }">
+              <el-tag :type="getStatusType(row.status)">{{ getStatusLabel(row.status) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="createdAt" label="创建时间" width="180">
+            <template #default="{ row }">
+              {{ formatDate(row.createdAt) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="180" fixed="right">
+            <template #default="{ row }">
+              <el-button type="primary" size="small" @click="editStudent(row)">编辑</el-button>
+              <el-button
+                :type="row.status === 'ACTIVE' ? 'warning' : 'success'"
+                size="small"
+                @click="toggleStudentStatus(row)"
+              >
+                {{ row.status === 'ACTIVE' ? '停用' : '启用' }}
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+      
+      <!-- 移动端卡片列表 -->
+      <div class="mobile-card-list">
+        <div v-if="loading" class="mobile-loading">
+          <el-skeleton :rows="3" animated />
+        </div>
+        <template v-else>
+          <div 
+            v-for="student in filteredStudents" 
+            :key="student.id" 
+            class="mobile-card-item"
+          >
+            <div class="mobile-card-header">
+              <span class="mobile-card-title">{{ student.name }}</span>
+              <div class="mobile-card-header-actions">
+                <el-tag :type="getGradeType(student.gradeLevel)" size="small">{{ getGradeLabel(student.gradeLevel) }}</el-tag>
+                <el-tag :type="getStatusType(student.status)" size="small" style="margin-left: 8px;">{{ getStatusLabel(student.status) }}</el-tag>
+              </div>
+            </div>
+            <div class="mobile-card-body">
+              <div class="mobile-card-row">
+                <span class="mobile-card-label">家长姓名</span>
+                <span class="mobile-card-value">{{ student.parentName || '-' }}</span>
+              </div>
+              <div class="mobile-card-row">
+                <span class="mobile-card-label">家长电话</span>
+                <span class="mobile-card-value">{{ student.parentPhone || '-' }}</span>
+              </div>
+              <div class="mobile-card-row">
+                <span class="mobile-card-label">创建时间</span>
+                <span class="mobile-card-value">{{ formatDate(student.createdAt) }}</span>
+              </div>
+            </div>
+            <div class="mobile-card-actions">
+              <el-button type="primary" size="small" @click="editStudent(student)">编辑</el-button>
+              <el-button
+                :type="student.status === 'ACTIVE' ? 'warning' : 'success'"
+                size="small"
+                @click="toggleStudentStatus(student)"
+              >
+                {{ student.status === 'ACTIVE' ? '停用' : '启用' }}
+              </el-button>
+            </div>
+          </div>
+          <el-empty v-if="filteredStudents.length === 0" description="暂无数据" />
+        </template>
+      </div>
     </el-card>
     
     <!-- 添加/编辑对话框 -->
@@ -344,5 +394,10 @@ onMounted(() => {
 .header-actions {
   display: flex;
   align-items: center;
+}
+
+/* 移动端加载状态 */
+.mobile-loading {
+  padding: 20px;
 }
 </style>

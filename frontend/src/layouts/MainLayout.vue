@@ -1,100 +1,119 @@
 <template>
   <el-container class="main-layout">
-    <el-aside width="220px" class="sidebar">
+    <!-- 移动端遮罩层 -->
+    <div 
+      v-if="isMobile && !sidebarCollapsed" 
+      class="mobile-overlay"
+      @click="toggleSidebar"
+    ></div>
+    
+    <!-- 侧边栏 -->
+    <el-aside 
+      :width="isMobile ? '280px' : (sidebarCollapsed ? '64px' : '220px')" 
+      class="sidebar"
+      :class="{ 
+        'sidebar-collapsed': sidebarCollapsed && !isMobile,
+        'sidebar-mobile': isMobile,
+        'sidebar-mobile-open': isMobile && !sidebarCollapsed
+      }"
+    >
       <div class="logo">
         <el-icon size="28"><School /></el-icon>
-        <span>教务管理系统</span>
+        <span v-if="!sidebarCollapsed || isMobile">教务管理系统</span>
       </div>
       
       <el-menu
         :default-active="$route.path"
         router
         class="sidebar-menu"
+        :collapse="sidebarCollapsed && !isMobile"
+        :collapse-transition="false"
         background-color="#304156"
         text-color="#bfcbd9"
         active-text-color="#409EFF"
+        @select="handleMenuSelect"
       >
         <el-menu-item index="/dashboard">
           <el-icon><Odometer /></el-icon>
-          <span>仪表盘</span>
+          <template #title><span>仪表盘</span></template>
         </el-menu-item>
         
         <!-- 老师菜单 -->
         <template v-if="authStore.isTeacher">
-          <el-divider content-position="left" class="menu-divider">老师端</el-divider>
+          <el-divider v-if="!sidebarCollapsed || isMobile" content-position="left" class="menu-divider">老师端</el-divider>
           <el-menu-item index="/my-schedule">
             <el-icon><Calendar /></el-icon>
-            <span>我的课表</span>
+            <template #title><span>我的课表</span></template>
           </el-menu-item>
           <el-menu-item index="/my-attendance">
             <el-icon><Check /></el-icon>
-            <span>签到管理</span>
+            <template #title><span>签到管理</span></template>
           </el-menu-item>
           <el-menu-item index="/travel-config">
             <el-icon><MapLocation /></el-icon>
-            <span>路程配置</span>
+            <template #title><span>路程配置</span></template>
           </el-menu-item>
           <el-menu-item index="/my-stats">
             <el-icon><TrendCharts /></el-icon>
-            <span>个人统计</span>
+            <template #title><span>个人统计</span></template>
           </el-menu-item>
         </template>
         
         <!-- 教务菜单 -->
         <template v-if="authStore.isAdmin || authStore.isStaff">
-          <el-divider content-position="left" class="menu-divider">教务端</el-divider>
+          <el-divider v-if="!sidebarCollapsed || isMobile" content-position="left" class="menu-divider">教务端</el-divider>
           <el-menu-item index="/students">
             <el-icon><User /></el-icon>
-            <span>学生管理</span>
+            <template #title><span>学生管理</span></template>
           </el-menu-item>
           <el-menu-item index="/classes">
             <el-icon><School /></el-icon>
-            <span>班级管理</span>
+            <template #title><span>班级管理</span></template>
           </el-menu-item>
           <el-menu-item index="/schedule">
             <el-icon><Calendar /></el-icon>
-            <span>排课中心</span>
+            <template #title><span>排课中心</span></template>
           </el-menu-item>
           <el-menu-item index="/attendance-manage">
             <el-icon><Edit /></el-icon>
-            <span>签到管理</span>
+            <template #title><span>签到管理</span></template>
           </el-menu-item>
           <el-menu-item index="/reports">
             <el-icon><Document /></el-icon>
-            <span>报表中心</span>
+            <template #title><span>报表中心</span></template>
           </el-menu-item>
         </template>
         
         <!-- 管理员菜单 -->
         <template v-if="authStore.isAdmin">
-          <el-divider content-position="left" class="menu-divider">管理员</el-divider>
+          <el-divider v-if="!sidebarCollapsed || isMobile" content-position="left" class="menu-divider">管理员</el-divider>
           <el-menu-item index="/campuses">
             <el-icon><OfficeBuilding /></el-icon>
-            <span>校区管理</span>
+            <template #title><span>校区管理</span></template>
           </el-menu-item>
           <el-menu-item index="/teachers">
             <el-icon><UserFilled /></el-icon>
-            <span>老师管理</span>
+            <template #title><span>老师管理</span></template>
           </el-menu-item>
           <el-menu-item index="/travel-manage">
             <el-icon><Timer /></el-icon>
-            <span>路程管理</span>
+            <template #title><span>路程管理</span></template>
           </el-menu-item>
           <el-menu-item index="/courses">
             <el-icon><Reading /></el-icon>
-            <span>课程管理</span>
+            <template #title><span>课程管理</span></template>
           </el-menu-item>
           <el-menu-item index="/users">
             <el-icon><Lock /></el-icon>
-            <span>账号管理</span>
+            <template #title><span>账号管理</span></template>
           </el-menu-item>
           <el-menu-item index="/backup">
             <el-icon><Folder /></el-icon>
-            <span>数据备份</span>
+            <template #title><span>数据备份</span></template>
           </el-menu-item>
           <el-menu-item index="/debug">
             <el-icon><Tools /></el-icon>
-            <span>调试工具</span>
+            <template #title><span>调试工具</span></template>
           </el-menu-item>
         </template>
       </el-menu>
@@ -103,6 +122,14 @@
     <el-container>
       <el-header class="header">
         <div class="header-left">
+          <!-- 汉堡按钮 -->
+          <el-button
+            class="hamburger-btn"
+            text
+            @click="toggleSidebar"
+          >
+            <el-icon size="20"><Fold v-if="!sidebarCollapsed && !isMobile" /><Expand v-else /></el-icon>
+          </el-button>
           <breadcrumb />
         </div>
         <div class="header-right">
@@ -156,7 +183,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
@@ -166,6 +193,48 @@ import Breadcrumb from '@/components/Breadcrumb.vue'
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+
+// 响应式状态
+const isMobile = ref(false)
+const sidebarCollapsed = ref(false)
+const MOBILE_BREAKPOINT = 768
+
+// 检查是否为移动端
+const checkMobile = () => {
+  const wasMobile = isMobile.value
+  isMobile.value = window.innerWidth <= MOBILE_BREAKPOINT
+  
+  // 切换到移动端时，默认收起侧边栏
+  if (isMobile.value && !wasMobile) {
+    sidebarCollapsed.value = true
+  }
+  // 从移动端切换到桌面端时，默认展开侧边栏
+  if (!isMobile.value && wasMobile) {
+    sidebarCollapsed.value = false
+  }
+}
+
+// 切换侧边栏
+const toggleSidebar = () => {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+}
+
+// 菜单选择处理（移动端选择后自动收起）
+const handleMenuSelect = () => {
+  if (isMobile.value) {
+    sidebarCollapsed.value = true
+  }
+}
+
+// 监听窗口大小变化
+onMounted(() => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
+})
 
 const profileDialogVisible = ref(false)
 const profileFormRef = ref()
@@ -256,6 +325,29 @@ const saveProfile = async () => {
   top: 0;
   bottom: 0;
   overflow-y: auto;
+  z-index: 1000;
+  transition: width 0.3s;
+}
+
+/* 移动端侧边栏样式 */
+.sidebar-mobile {
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+}
+
+.sidebar-mobile.sidebar-mobile-open {
+  transform: translateX(0);
+}
+
+/* 移动端遮罩层 */
+.mobile-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 999;
 }
 
 .logo {
@@ -267,10 +359,13 @@ const saveProfile = async () => {
   font-size: 18px;
   font-weight: bold;
   border-bottom: 1px solid #1f2d3d;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .logo .el-icon {
   margin-right: 10px;
+  flex-shrink: 0;
 }
 
 .sidebar-menu {
@@ -299,6 +394,18 @@ const saveProfile = async () => {
   right: 0;
   left: 220px;
   z-index: 100;
+  transition: left 0.3s;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hamburger-btn {
+  padding: 8px;
+  font-size: 18px;
 }
 
 .header-right {
@@ -319,5 +426,52 @@ const saveProfile = async () => {
   margin-left: 220px;
   background-color: #f0f2f5;
   min-height: calc(100vh - 60px);
+  transition: margin-left 0.3s;
+}
+
+/* 侧边栏折叠时的样式 */
+.sidebar-collapsed + .el-container .header {
+  left: 64px;
+}
+
+.sidebar-collapsed + .el-container .main-content {
+  margin-left: 64px;
+}
+
+/* 移动端响应式样式 */
+@media screen and (max-width: 768px) {
+  .header {
+    left: 0;
+  }
+  
+  .main-content {
+    margin-left: 0;
+  }
+  
+  .sidebar-collapsed + .el-container .header,
+  .sidebar-mobile-open + .el-container .header {
+    left: 0;
+  }
+  
+  .sidebar-collapsed + .el-container .main-content,
+  .sidebar-mobile-open + .el-container .main-content {
+    margin-left: 0;
+  }
+  
+  /* 移动端隐藏面包屑 */
+  .header-left .breadcrumb {
+    display: none;
+  }
+}
+
+/* 平板响应式样式 */
+@media screen and (max-width: 992px) {
+  .header {
+    left: 64px;
+  }
+  
+  .main-content {
+    margin-left: 64px;
+  }
 }
 </style>

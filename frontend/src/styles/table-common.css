@@ -72,3 +72,258 @@
     max-height: calc(100vh - 200px);
   }
 }
+
+/* ========== 移动端卡片式表格样式 ========== */
+
+/* 小屏设备：表格转为卡片式布局 */
+@media screen and (max-width: 768px) {
+  /* 隐藏原表格 */
+  .mobile-card-table .el-table {
+    display: none;
+  }
+  
+  /* 卡片列表容器 */
+  .mobile-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  /* 单个卡片样式 */
+  .mobile-card-item {
+    background: #fff;
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+    border: 1px solid #ebeef5;
+  }
+  
+  /* 卡片头部 */
+  .mobile-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #ebeef5;
+  }
+  
+  .mobile-card-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #303133;
+  }
+  
+  /* 卡片内容行 */
+  .mobile-card-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f5f7fa;
+  }
+  
+  .mobile-card-row:last-child {
+    border-bottom: none;
+  }
+  
+  /* 标签 */
+  .mobile-card-label {
+    color: #909399;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  
+  /* 值 */
+  .mobile-card-value {
+    color: #606266;
+    font-size: 14px;
+    text-align: right;
+    word-break: break-all;
+  }
+  
+  /* 操作按钮区域 */
+  .mobile-card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #ebeef5;
+    flex-wrap: wrap;
+  }
+  
+  .mobile-card-actions .el-button {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  /* 状态标签样式 */
+  .mobile-card-value .el-tag {
+    margin-left: 0;
+  }
+  
+  /* 卡片头部操作区 */
+  .mobile-card-header-actions {
+    display: flex;
+    gap: 8px;
+  }
+}
+
+/* 大屏设备：显示原表格，隐藏卡片 */
+@media screen and (min-width: 769px) {
+  .mobile-card-list {
+    display: none;
+  }
+}
+
+/* ========== 通用移动端优化 ========== */
+
+@media screen and (max-width: 768px) {
+  /* 页面容器 */
+  .students,
+  .classes,
+  .teachers,
+  .courses,
+  .campuses,
+  .users,
+  .schedule,
+  .attendance-manage,
+  .reports,
+  .global-reports,
+  .travel-manage,
+  .travel-config,
+  .announcements,
+  .backup,
+  .debug {
+    padding: 10px !important;
+  }
+  
+  /* 卡片头部 */
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 12px;
+  }
+  
+  .card-header > span {
+    font-size: 16px;
+    font-weight: 600;
+  }
+  
+  /* 头部操作区 */
+  .header-actions {
+    flex-wrap: wrap;
+    width: 100%;
+    gap: 8px;
+  }
+  
+  .header-actions .el-select,
+  .header-actions .el-input {
+    width: 100% !important;
+    margin-right: 0 !important;
+    margin-bottom: 8px;
+  }
+  
+  .header-actions .el-button {
+    width: 100%;
+    margin-left: 0 !important;
+  }
+  
+  /* 对话框适配 */
+  .el-dialog {
+    width: 95% !important;
+    margin: 10px auto !important;
+  }
+  
+  .el-dialog__body {
+    padding: 15px !important;
+  }
+  
+  /* 表单适配 */
+  .el-form-item {
+    margin-bottom: 15px;
+  }
+  
+  .el-form-item__label {
+    float: none;
+    display: block;
+    text-align: left;
+    padding: 0 0 8px;
+    line-height: 1.5;
+  }
+  
+  .el-form-item__content {
+    margin-left: 0 !important;
+  }
+  
+  /* 表格操作列按钮 */
+  .el-table .cell .el-button {
+    margin: 2px;
+  }
+  
+  /* 分页器适配 */
+  .el-pagination {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  
+  /* 标签页适配 */
+  .el-tabs__nav {
+    width: 100%;
+  }
+  
+  .el-tabs__item {
+    flex: 1;
+    text-align: center;
+  }
+  
+  /* 信息栏适配 */
+  .class-info-bar,
+  .info-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  /* 表格头部筛选区 */
+  .table-header {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 10px;
+  }
+  
+  .table-header > * {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    width: 100%;
+  }
+  
+  /* 学生列表展开区域 */
+  .student-list {
+    padding: 10px !important;
+  }
+  
+  /* 学生管理对话框 */
+  .student-manage {
+    padding: 5px !important;
+  }
+  
+  /* 添加新学生表单 */
+  .add-new-student {
+    max-width: 100% !important;
+  }
+}
+
+/* 平板设备优化 */
+@media screen and (min-width: 769px) and (max-width: 992px) {
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 12px;
+  }
+  
+  .header-actions {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+}
