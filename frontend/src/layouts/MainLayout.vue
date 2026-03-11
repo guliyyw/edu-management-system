@@ -333,6 +333,7 @@ const saveProfile = async () => {
 .sidebar-mobile {
   transform: translateX(-100%);
   transition: transform 0.3s ease;
+  width: 280px !important;
 }
 
 .sidebar-mobile.sidebar-mobile-open {
@@ -441,21 +442,24 @@ const saveProfile = async () => {
 /* 移动端响应式样式 */
 @media screen and (max-width: 768px) {
   .header {
-    left: 0;
+    left: 0 !important;
   }
   
   .main-content {
-    margin-left: 0;
+    margin-left: 0 !important;
   }
   
-  .sidebar-collapsed + .el-container .header,
-  .sidebar-mobile-open + .el-container .header {
-    left: 0;
+  /* 移动端侧边栏始终作为抽屉显示 */
+  .sidebar {
+    width: 280px !important;
   }
   
-  .sidebar-collapsed + .el-container .main-content,
-  .sidebar-mobile-open + .el-container .main-content {
-    margin-left: 0;
+  .sidebar.sidebar-mobile {
+    transform: translateX(-100%);
+  }
+  
+  .sidebar.sidebar-mobile.sidebar-mobile-open {
+    transform: translateX(0);
   }
   
   /* 移动端隐藏面包屑 */
